@@ -1,0 +1,18 @@
+/var/log/wu-ftpd/xferreport {
+  rotate 15
+  monthly
+  missingok
+}
+
+/var/log/wu-ftpd/xferlog {
+  rotate 10
+  monthly
+  compress
+  copytruncate
+  missingok
+  start 1
+  postrotate
+    /usr/sbin/xferstats -f /var/log/wu-ftpd/xferlog.1 -a -d -h 2>&1 >/var/log/wu-ftpd/xferreport
+#   killall -HUP inetd
+  endscript
+}

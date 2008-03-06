@@ -1,0 +1,162 @@
+#!/bin/bash
+# Name: postfix
+# Date: 2004-12-22 20:30
+# Author: Alexander Batyrshin <abatyrshin@ru.mvista.com>
+# Copyright: Copyright 1999-2004 MontaVista Software, Inc.
+# License: 2003 (c) MontaVista Software, Inc. This file is licensed
+#          under the terms of the GNU General Public License version 2.
+#          This program is licensed "as is" without any warranty of any
+#          kind, whether express or implied.
+#
+### BEGIN INIT INFO
+# Required-Start: 
+# Required-Stop:
+# Should-Start:
+# Should-Stop:
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
+# Description: Postfix is a Mail Transport Agent
+### END INIT INFO 
+# chkconfig: 2345 80 20
+#
+# processname: master
+# pidfile: /var/spool/postfix/pid/master.pid
+# config: /etc/postfix/main.cf
+# config: /etc/postfix/master.cf
+
+INIT_NAME=postfix
+DESC="MTA"
+# Individual Daemon information
+DAEMON1=/usr/sbin/postfix
+ARGS1=""
+BASENAME1=${DAEMON1##*/}
+
+# Source function library.
+. /etc/init.d/init-functions
+
+[ -x /usr/sbin/postfix ] || exit 0
+[ -d /etc/postfix ] || exit 0
+[ -d /var/spool/postfix ] || exit 0
+
+RETVAL=0
+
+start() {
+	# Start daemons.
+	log_status_msg "Starting $DESC: " -n
+	log_status_msg "$BASENAME1" -n
+	start_daemon $DAEMON1 $ARGS1
+	
+	log_status_msg ""
+	return 0
+	alias_database=$(postconf -h alias_database 2>/dev/null)
+	RETVAL=1
+	[ -z "$alias_database" ] && {
+	    log_failure_msg "determination of alias_database"
+	    echo
+	    return 0	    
+	}
+	/usr/sbin/postalias ${alias_database//,} 2>/dev/null
+	RETVAL=$?
+	[ $RETVAL -ne 0 ] && {
+	    log_failure_msg "postalias $alias_database"
+	    echo
+	    return 0	    
+	}
+	/usr/sbin/postfix start 2>/dev/null 1>&2 && success || failure
+
+	RETVAL=$?
+	if [ $RETVAL -eq 0 ]; then
+		touch /var/lock/subsys/postfix
+		log_success_msg "."n
+	else
+		log_failure_msg " failed ($RETVAL: $ERROR)."
+		return 1
+	fi
+	return $RETVAL
+}
+
+stop() {
+        # Stop daemons.
+	log_status_msg "Stopping $DESC: " -n
+	/usr/sbin/postfix stop 2>/dev/null 1>&2 && success || failure
+
+	RETVAL=$?
+	if [ $RETVAL -eq 0 ]; then
+		rm -f /var/lock/subsys/postfix
+		log_success_msg ". "
+	else
+		log_failure_msg "failed ($RETVAL: $ERROR). " -n
+		return 1
+	fi
+	return $RETVAL
+}
+
+reload() {
+	log_status_msg "Reloading $DESC: " -n
+	/usr/sbin/postfix reload 2>/dev/null 1>&2 && success || failure
+	RETVAL=$?
+	if [ $RETVAL -eq 0 ]; then
+		log_success_msg ". "
+	else
+		log_failure_msg "failed ($RETVAL: $ERROR). " -n
+		return 1
+	fi
+	return $RETVAL
+}
+
+abort() {
+	/usr/sbin/postfix abort 2>/dev/null 1>&2 && success || failure
+	return $?
+}
+
+flush() {
+	/usr/sbin/postfix flush 2>/dev/null 1>&2 && success || failure
+	return $?
+}
+
+check() {
+	/usr/sbin/postfix check 2>/dev/null 1>&2 && success || failure
+	return $?
+}
+
+restart() {
+	stop
+	start
+}
+
+# See how we were called.
+case "$1" in
+  start)
+	start
+	;;
+  stop)
+	stop
+	;;
+  restart)
+	stop
+	start
+	;;
+  reload)
+	reload
+	;;
+  abort)
+	abort
+	;;
+  flush)
+	flush
+	;;
+  check)
+	check
+	;;
+  status)
+  	status master
+	;;
+  condrestart)
+	[ -f /var/lock/subsys/postfix ] && restart || :
+	;;
+  *)
+	echo "Usage: postfix {start|stop|restart|reload|abort|flush|check|status|condrestart}"
+	exit 1
+esac
+
+exit $?

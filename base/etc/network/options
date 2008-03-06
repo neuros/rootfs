@@ -1,0 +1,4 @@
+spoofprotect=yes
+ip_forward=no
+syncookies=no
+disable_tcp_ecn=yes

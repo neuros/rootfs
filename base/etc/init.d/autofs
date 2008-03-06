@@ -1,0 +1,335 @@
+#! /bin/sh
+#
+# Name: autofs 
+# Date: 2003-06-30 15:00
+# Author: MontaVista Software, Inc. <source@mvista.com>
+# Copyright: Copyright 1999-2003 MontaVista Software, Inc.
+# License: 2003 (c) MontaVista Software, Inc. This file is licensed
+#          under the terms of the GNU General Public License version 2.
+#          This program is licensed "as is" without any warranty of any
+#          kind, whether express or implied.
+# 
+# Copyright 2002, 2003, 2004 Sony Corporation
+# Copyright 2002, 2003, 2004 Matsushita Electric Industrial Co., Ltd.
+#
+### BEGIN INIT INFO
+# Required-Start: 
+# Required-Stop:
+# Should-Start:
+# Should-Stop:
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
+# Short-Description: 
+# Description:
+### END INIT INFO 
+# chkconfig: 2345 22 22
+
+# Init script information
+INIT_NAME=automount
+DESC="automounter"
+
+# Individual Daemon information
+DAEMON1=/usr/sbin/automount
+ARGS1=""
+BASENAME1=${DAEMON1##*/}
+AUTODIR=/var/run/autofs
+
+system=debian
+#
+# We can add local options here
+# e.g. localoptions='rsize=8192,wsize=8192'
+#
+localoptions=''
+
+# Load init script configuration
+[ -f /etc/default/$INIT_NAME ] && . /etc/default/$INIT_NAME
+
+# Source the init script functions
+. /etc/init.d/init-functions
+
+# Verify daemons are installed
+[ "$1" = "status" ] && NFOUND=4 || NFOUND=5
+test -f $DAEMON1 || exit $NFOUND
+
+getmounts()
+{
+    	# Check for local maps to be loaded
+    	local map=/etc/auto.master
+    	if [ -f "$map" ]
+    	then
+        	sed -e '/^#/d' -e '/^$/d' $map | process_master_file "$@"
+    	else
+        	if ! getnismounts auto.master; then
+            		log_status_msg "no autofs mounts configured!"
+			return 6
+        fi
+    fi
+}
+
+process_master_file()
+{
+    local line_options="$@" daemon_options
+    while read dir map options
+    do
+	options="$line_options $options"
+	case "$dir" in
+	    +*)	getnismounts "`echo ${dir} | sed -e s/+//`" $map $options
+		continue;
+	esac
+	if [ ! -z "$dir" -a ! -z "$map" \
+		-a x`echo "$map" | cut -c1` != 'x-' ]
+	then
+	    type=""
+	    if [ -x $map ]; then
+		type=program
+	    elif [ -f $map ]; then
+		type=file
+	    elif [ x`echo "$map" | cut -c1` = 'x/' ]; then
+		# Starts with '/', thus a file, but doesn't exist
+		# so leave it out, leaving 'type=""' (hro)
+		type=""
+	    elif [ -f /etc/$map ]; then
+		type=file
+		map=/etc/$map
+	    elif [ $map = hesiod ]; then
+		type=hesiod
+		map=""
+	    else
+		case "$map" in
+		    !*)	type=program map="`echo ${map} | sed -e s/!//`";;
+		    *)	type=yp;;
+		esac
+	    fi
+	    daemon_options=`munge_options daemon $options`
+	    options=`munge_options mount $options`
+	    if [ -n "$daemon_options" ]; then
+		daemon_options="$daemon_options "
+	    fi
+
+	    if [ "$type" ]; then
+		log_status_msg "$DAEMON $daemon_options -- $dir $type $map $localoptions $options"
+	    fi
+	fi
+    done
+}
+
+getnismounts()
+{
+    #
+    # Check for YellowPage maps to be loaded
+    #
+    local map="$1"
+    shift
+    if [ -e /usr/bin/ypcat ] && [ `ypcat -k "$map" 2>/dev/null | wc -l` -gt 0 ]
+    then
+	ypcat -k "$map" | process_master_file "$@"
+    else
+	return 1
+    fi
+}
+
+munge_options()
+{
+	local which="$1"
+	shift
+	echo "$@" | awk -v which="$which" '
+BEGIN {
+	RS="[, \n-]"
+	FS="="
+	daemon_opts[ "timeout" ] = "timeout"
+	daemon_opts[ "t" ] = "timeout"
+}
+{
+	if ( $0 ~ /^$/ )
+		next
+	if ( $1 in daemon_opts ) {
+		daemon[ daemon_opts[ $1 ] ] = $2
+	} else {
+		mount[$0] = 1
+	}
+}
+END {
+	if ( which ~ "^daemon$" ) {
+		if ( "timeout" in daemon ) {
+			printf "--timeout=%s\n", daemon["timeout"]
+		}
+	} else {
+		for ( a in mount ) {
+			if ( length( out ) )
+				out=out "," a
+			else
+				out=a
+		}
+		printf "%s\n", out
+	}
+}
+'
+}
+
+
+# Each init script action is defined below...
+
+start() {
+	local RET ERROR=
+	
+        log_status_msg "Starting $DESC:" 
+        getmounts | while read cmd args
+        do
+                opt=${args%%-- *}
+                rest=${args#*-- }
+                mnt=${rest%% *}
+                rest=${rest#* }
+                echo -n " $mnt"
+                [ -d $AUTODIR ] || mkdir $AUTODIR
+                pidfile=$AUTODIR/`echo $mnt | sed 's,_,__,g;s,/,_:,g'`.pid
+                start_daemon -p $pidfile $DAEMON1 $opt $mnt $rest
+                RET=$?
+                if [ $RET -eq 0 ]; then
+                        log_success_msg " "
+                else
+                        log_failure_msg " failed ($RET: $ERROR)."
+                        return 1
+                fi
+                /bin/ps ax | grep "[0-9]:[0-9][0-9] $DAEMON1 $opt $mnt" | (
+                        read pid tt stat time command
+                        echo $pid > $pidfile
+                        echo "$command" >> $pidfile
+                )
+        done
+        log_status_msg ""
+	return 0
+}
+
+stop () {
+	local RET ERROR=
+
+	log_status_msg "Stopping $DESC: " -n
+	log_status_msg "$BASENAME1" -n
+	killproc $BASENAME1 -USR2
+	RET=$?
+	if [ $RET -eq 0 ]; then
+		log_success_msg ". "
+	else
+		log_failure_msg "failed ($RET: $ERROR). " -n
+		return 1
+	fi
+
+	for file in $AUTODIR/*.pid
+        do
+            if [ -e "$file" ]
+            then
+                pid=`head -n 1 $file`
+                command=`tail -n 1 $file`
+                if [ -z "`/bin/ps --no-heading $pid`" ]
+                then
+                    log_status_msg "Stopped $pid($command)."
+                    rm -f $file
+                else
+                    log_failure_msg "Couldn't stop $pid($command)."
+                fi
+            fi
+        done
+	log_status_msg ""
+	return 0
+}
+
+forcereload() {
+	local RET
+
+	log_status_msg "Restarting $DESC..."
+	stop
+	start
+	RET=$?
+
+	return $RET
+}
+
+restart() {
+	local RET
+
+        log_status_msg "Reloading $DESC: checking for changes ... " -n
+        TMP=$AUTODIR.tmp
+        getmounts | sed 's/ -- / /' >$TMP
+        for i in $AUTODIR/*.pid
+        do
+                command=`tail --lines=+2 $i`
+                if ! grep -q "^$command" $TMP
+                then
+                        echo "Stopping $DESC: $command"
+                        killproc -p $i -USR2 
+			RET=$?
+        		if [ $RET -eq 0 ]; then
+                		log_success_msg "."
+        		else
+                		log_failure_msg "failed ($RET: $ERROR). " -n
+                		return 1
+        		fi
+                        rm -f $i
+                fi
+        done
+        rm -f $TMP
+        $0 start
+
+	return $RET
+}
+
+status() {
+	local RET
+
+	log_status_msg "Configured Mount Points:"
+    	log_status_msg "------------------------"
+    	getmounts | sed 's/ -- / /'
+    	log_status_msg ""
+    	log_status_msg "Active Mount Points:"
+    	log_status_msg "--------------------"
+	for i in $AUTODIR/*.pid
+        do
+                command=`tail --lines=+2 $i`
+		log_status_msg $command
+        done
+
+	printstatus $BASENAME1
+	RET=$?
+	return $RET
+}
+
+#
+# Everything after this should be the same for all init scripts
+#
+# See the policy manual for information on actions and return codes.
+#
+
+parse() {
+	case "$1" in
+		start)
+			start
+			return $?
+			;;
+		stop)
+			stop
+			return $?
+			;;
+		restart|reload|try-restart)
+			restart
+			return $?
+			;;
+		force-reload)
+			forcereload
+			return $?
+			;;
+		status)
+			status
+			return $?
+			;;
+		*)
+			echo "Usage: $INIT_NAME " \
+			"{start|stop|restart|try-restart|reload|" \
+			"force-reload|status}" >&2
+			;;
+	esac
+	
+	return 1
+}
+
+parse $@
+

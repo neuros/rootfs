@@ -1,0 +1,36 @@
+# Config file for dhcpcd.
+
+case ${INTERFACE} in
+eth0) 
+
+# Uncomment this to allow dhcpcd to set the DNS servers in /etc/resolv.conf
+#SET_DNS='yes'
+
+# Uncomment this to allow dhcpcd to set domainname of the host to the
+# domainname option supplied by DHCP server.
+#SET_DOMAIN='yes'
+
+# Uncomment this to allow dhcpcd to set hostname of the host to the
+# hostname option supplied by DHCP server.
+#SET_HOSTNAME='yes'
+
+# Uncomment this to allow dhcpcd to set the NTP servers in /etc/ntp.conf
+#SET_NTP='yes'
+
+# Uncomment this to allow dhcpcd to set the YP servers in /etc/yp.conf
+#SET_YP='yes'
+
+# Add other options here, see man 8 dhcpcd-bin for details.
+OPTIONS=''
+;;
+
+# Add other interfaces here
+*)
+;;
+
+esac
+
+
+
+
+

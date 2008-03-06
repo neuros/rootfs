@@ -1,0 +1,24 @@
+#!/bin/sh
+
+# if there is no 'logfile /var/log/ntpd' line in /etc/ntp.conf, ntpd will log
+# via syslog, and output will show up in daemon.log.  this log rotation code
+# is therefore conditionalized such that we won't stop and restart the daemon
+# unless we're not using syslog and need to rotate the /var/log/ntpd file.
+
+if [ -x /usr/sbin/ntpd ]
+then
+  if [ -f /var/log/ntpd ]
+  then
+    case $(start-stop-daemon --stop --oknodo --test --exec /usr/sbin/ntpd) in
+
+      *Would\ send\ signal*)
+
+	/etc/init.d/ntp-server stop > /dev/null
+	savelog -g adm -m 644 -u root -c 4 /var/log/ntpd > /dev/null
+	/etc/init.d/ntp-server start > /dev/null
+
+      ;;
+
+    esac
+  fi
+fi

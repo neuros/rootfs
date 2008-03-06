@@ -1,0 +1,12 @@
+
+	Configuration of Init under MontaVista(R) Linux(R)
+
+Most Unix versions have a file here that describes how the scripts
+in this directory work, and how the links in the /etc/rc.d/rc?.d/ directories
+influence system startup/shutdown.
+
+<Note: We should explain here...>
+
+skeleton shows an example of what an init.d script should look like.
+
+Please consult the MontaVista(R) Zone for more information.

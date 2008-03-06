@@ -1,0 +1,27 @@
+#!/bin/sh
+
+[ -n "$EX4DEBUG" ] && set -x
+
+# Only do anything if exim4 is actually installed
+if [ ! -x /usr/lib/exim4/exim4 ]; then
+  exit 0
+fi
+
+# Uncomment the following lines to get daily e-mail reports
+#if [ -x /usr/sbin/eximstats ]; then
+#  eximstats </var/log/exim4/mainlog \
+#                    | mail postmaster -s"$(hostname) Daily email activity report"
+#fi
+
+
+# run tidydb as Debian-exim:Debian-exim.
+if [ -x /usr/sbin/exim_tidydb ]; then
+  cd /var/spool/exim4/db || exit 1
+  find /var/spool/exim4/db -maxdepth 1 -name '*.lockfile' -or -type f \
+    -printf '%f\0' | \
+      xargs -0r -n 1 \
+      start-stop-daemon --start --exec /usr/sbin/exim_tidydb \
+      --chuid Debian-exim:Debian-exim -- /var/spool/exim4 > /dev/null
+fi
+
+rm -f /var/spool/exim4/gnutls-params

@@ -1,0 +1,10 @@
+# /etc/systune.dump
+
+# Format:
+#  <path>
+#  <path>
+#  ...
+
+# String after ':' character is ignored
+
+/proc/sys/

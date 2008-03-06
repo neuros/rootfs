@@ -1,0 +1,65 @@
+#
+#	Configuration parameters for MontaVista Linux 
+#	target tools daemon (MVLTD).
+#
+#	Copyright(C) 1999-2005 MontaVista Software, Inc. <source@mvista.com>
+#	This file is licensed under the terms of the GNU General Public License
+#	version 2. This program is licensed "as is" without any warranty of any
+#	kind, whether express or implied.
+#
+#
+# MVLTD_PORT
+# ----------
+#
+# This parameter specifies the IPv4 port number
+# for binding (port for listen to)
+#
+MVLTD_PORT=34577
+
+#
+# MVLTD_TOOLSDIR
+# --------------
+#
+# This parameter specifies where MVLTD daemon
+# should to looking a target tools for. Note:
+# there should be an absolute path specified.
+#
+MVLTD_TOOLSDIR="/usr/lib/mvltd"
+
+#
+# MVLTD_MAXTHREADS
+# ------------
+#
+# This parameter allow user to specify the
+# maximum number of concurrent daemon's threads
+# to start, i.e., simultenous connections allowed
+# at time.
+#
+MVLTD_MAXTHREADS=5
+
+#
+# MVLTD_EXMODE
+# ------------
+#
+# This parameter allows user to specify the
+# daemon's execution mode. There may be
+# the following values for this parameter:
+#
+#		* exec
+#		In this mode, daemon will treat each of
+#		the tool found as executable files, and
+#		run it in the separate address space as
+#		usual standalone application;
+#
+#		* poll
+#		Contary with 'exec', this mode tells daemon
+#		to treat all the tools as separate dynamicaly
+#		loaded libraries, thus on each request from 
+#		the host side the relating tool will be 
+#		loaded into the memory with following unload
+#		(on connection terminating).
+#
+MVLTD_EXMODE="poll"
+
+
+# END

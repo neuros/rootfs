@@ -1,0 +1,15 @@
+# Do not edit -- this file documents how Postfix was built for your machine.
+SYSTYPE	= LINUX2
+AR	= arm_v5t_le-ar
+ARFL	= rv
+RANLIB	= arm_v5t_le-ranlib
+SYSLIBS	= -ldb -lnsl -lresolv -lgdbm
+CC	= arm_v5t_le-gcc  -DNO_PCRE -DHAS_DBM -DHAS_GDBM -DPATH_NDBM_H='<gdbm-ndbm.h>'
+OPT	= -O
+DEBUG	= -g
+AWK	= awk
+STRCASE = 
+EXPORT	= AUXLIBS='' CCARGS=' -DNO_PCRE -DHAS_DBM -DHAS_GDBM -DPATH_NDBM_H='<gdbm-ndbm.h>'' OPT='-O' DEBUG='-g'
+WARN	= -W -Wformat -Wimplicit -Wmissing-prototypes \
+	-Wparentheses -Wstrict-prototypes -Wswitch -Wuninitialized \
+	-Wunused

@@ -1,0 +1,214 @@
+#! /bin/sh
+#
+# Name: syslog 
+# Date: 2003-06-27 19:15
+# Author: MontaVista Software, Inc. <source@mvista.com>
+# Copyright: Copyright 1999-2003 MontaVista Software, Inc.
+# License: 2003 (c) MontaVista Software, Inc. This file is licensed
+#          under the terms of the GNU General Public License version 2.
+#          This program is licensed "as is" without any warranty of any
+#          kind, whether express or implied.
+# 
+# Copyright 2002, 2003, 2004 Sony Corporation
+# Copyright 2002, 2003, 2004 Matsushita Electric Industrial Co., Ltd.
+#
+### BEGIN INIT INFO
+# Required-Start: 
+# Required-Stop:
+# Should-Start:
+# Should-Stop:
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
+# Short-Description: start system and kernel log daemons.
+# Description: start system and kernel log daemons.
+### END INIT INFO 
+# chkconfig: 2345 10 90
+
+# Init script information
+INIT_NAME=
+DESC="system log daemon"
+
+# Individual Daemon information
+DAEMON1=/sbin/klogd
+BASENAME1=${DAEMON1##*/}
+DAEMON2=/sbin/syslogd
+BASENAME2=${DAEMON2##*/}
+# Options for start/restart the daemons
+#   For remote UDP logging use SYSLOGD="-r"
+#
+SYSLOGD="-r"
+KLOGD="-x"
+
+
+# Load init script configuration
+[ -f /etc/default/$INIT_NAME ] && . /etc/default/$INIT_NAME
+
+# Source the init script functions
+. /etc/init.d/init-functions
+
+# Verify daemons are installed
+[ "$1" = "status" ] && NFOUND=4 || NFOUND=5
+test -f $DAEMON1 -a -f $DAEMON2 -a -f /bin/usleep || exit $NFOUND
+
+# Each init script action is defined below...
+
+start() {
+	local RET ERROR=
+
+	log_status_msg "Starting $DESC: " -n
+	log_status_msg "$BASENAME2" -n
+	start_daemon $DAEMON2 $SYSLOGD
+	RET=$?
+	if [ $RET -eq 0 ]; then
+		log_success_msg " " -n
+    else
+		log_failure_msg " failed ($RET: $ERROR)."
+		return 1
+    fi
+	usleep 100000 	
+	log_status_msg "$BASENAME1" -n
+        start_daemon $DAEMON1 $KLOGD
+        RET=$?
+        if [ $RET -eq 0 ]; then
+                log_success_msg "."
+        else
+                log_failure_msg " failed ($RET: $ERROR)."
+	return 1
+    fi
+	log_status_msg ""
+	return 0
+}
+
+stop () {
+	local RET ERROR=
+
+	log_status_msg "Stopping $DESC: " -n
+	log_status_msg "$BASENAME1" -n
+        killproc $BASENAME1
+        RET=$?
+        if [ $RET -eq 0 ]; then
+                log_success_msg " " -n
+        else
+                log_failure_msg " failed ($RET: $ERROR). " -n
+    fi
+	log_status_msg "$BASENAME2" -n
+	killproc $BASENAME2
+        RET=$?
+        if [ $RET -eq 0 ]; then
+                log_success_msg "."
+        else
+                log_failure_msg " failed ($RET: $ERROR). " -n
+	return 1
+    fi
+
+	log_status_msg ""
+	return 0
+}
+
+restart() {
+	local RET
+
+	log_status_msg "Restarting $DESC..."
+	stop
+	sleep 1
+	start
+	RET=$?
+
+	return $RET
+}
+
+tryrestart() {
+	local RET
+
+	pidstatus $BASENAME2
+	RET=$?
+	if [ $RET -eq 0 ]; then
+		restart
+		RET=$?
+	else
+		RET=7
+    fi
+
+	return $RET
+}
+
+#
+# if the service does not support reload return code 3 should
+# be the result...
+#
+reload() {
+	local RET
+
+	log_status_msg "Reloading $DESC configuration..." -n
+	killproc $BASENAME2 -HUP
+	log_success_msg "done."
+
+    return 0
+}
+
+forcereload() {
+	local RET
+
+	reload
+	RET=$?
+	if [ $RET -ne 0 ]; then
+		restart
+		RET=$?
+	fi
+	
+	return $RET
+}
+
+status() {
+	local RET
+	
+	printstatus $BASENAME2
+	RET=$?
+
+	return $RET
+}
+
+#
+# Everything after this should be the same for all init scripts
+#
+# See the policy manual for information on actions and return codes.
+#
+
+parse() {
+	case "$1" in
+  start)
+			start
+			return $?
+    ;;
+  stop)
+			stop
+			return $?
+    ;;
+  restart)
+			restart
+			return $?
+    ;;
+		try-restart)
+			tryrestart
+			return $?
+			;;
+		reload|force-reload)
+			reload
+			return $?
+			;;
+		status)
+			status
+			return $?
+    ;;
+  *)
+			echo "Usage: $INIT_NAME " \
+			"{start|stop|restart|try-restart|reload|" \
+			"force-reload|status}" >&2
+			;;
+	esac
+	
+	return 1
+}
+
+parse $@
+

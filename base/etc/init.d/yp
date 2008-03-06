@@ -1,0 +1,355 @@
+#! /bin/sh
+#
+# Name: yp 
+# Date: 2003-06-30 13:30
+# Author: MontaVista Software, Inc. <source@mvista.com>
+# Copyright: Copyright 1999-2003 MontaVista Software, Inc.
+# License: 2003 (c) MontaVista Software, Inc. This file is licensed
+#          under the terms of the GNU General Public License version 2.
+#          This program is licensed "as is" without any warranty of any
+#          kind, whether express or implied.
+#
+# Copyright 2002, 2003, 2004 Sony Corporation
+# Copyright 2002, 2003, 2004 Matsushita Electric Industrial Co., Ltd.
+#
+### BEGIN INIT INFO
+# Required-Start: 
+# Required-Stop:
+# Should-Start:
+# Should-Stop:
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
+# Short-Description: Start NIS (formerly YP) daemons.
+# Description: Start NIS (formerly YP) daemons.
+### END INIT INFO 
+# chkconfig: 2345 21 21
+
+# Init script information
+INIT_NAME=yp
+DESC="NIS daemons"
+
+# Individual Daemon information
+DAEMON1=/usr/sbin/ypbind 
+ARGS1=""
+BASENAME1=${DAEMON1##*/}
+DAEMON2=/usr/sbin/ypserv
+ARGS2=""
+BASENAME2=${DAEMON2##*/}
+DAEMON3=/usr/sbin/rpc.yppasswdd
+ARGS3=""
+BASENAME3=${DAEMON3##*/}
+DAEMON4=/usr/sbin/rpc.ypxfrd
+ARGS4=""
+BASENAME4=${DAEMON4##*/}
+DAEMON5=/usr/bin/ypwhich
+ARGS5=""
+BASENAME5=${DAEMON5##*/}
+DOMAINNAME=/bin/domainname
+
+# Customize the variables in /etc/default/nis rather than here
+NISSERVER=false
+YPPWDDIR=/etc
+YPCHANGEOK=chsh
+CONFFILE=/etc/defaultdomain
+
+# Load init script configuration
+[ -f /etc/default/$INIT_NAME ] && . /etc/default/$INIT_NAME
+
+# Source the init script functions
+. /etc/init.d/init-functions
+
+# Verify daemons are installed
+[ "$1" = "status" ] && NFOUND=4 || NFOUND=5
+test -f $DAEMON1 -a -f $DAEMON2 -a -f $DAEMON3 -a -f $DAEMON4 || exit $NFOUND
+test -f $DOMAINNAME -a -f $DAEMON5 || exit $NFOUND
+#test -f $CONFFILE || exit $NFOUND
+
+# Set 'manual' to indicate if we were started by hand.
+case "$0" in
+        *S??/*|*S???/*|*K??/*|*K???/*)
+                manual=
+                ;;
+        *)
+                manual=1
+                ;;
+esac
+
+want_ypbind()
+{
+	# Started manually?
+        if [ "" != "$manual" ]
+	then
+		return 0
+	fi
+
+        # Then special case for (partly) diskless systems.
+        nfs_root=`df -l / | tail +2`
+        nfs_usr=`df -l /usr | tail +2`
+        if [ "" = "$nfs_root" ] && [ "" != "$nfs_usr" ]
+        then
+                #       Root isn't on NFS, but /usr is, so
+                #       /etc/network/ifup.d couldn't ever have started
+                #       /usr/sbin/ypbind BUT the network is available.
+	return 0
+        fi
+
+        # Old style networking?
+        if [ -f /etc/init.d/network ] || [ ! -d /etc/network/if-up.d ]
+	then
+                return 0
+	fi
+
+        # Right, assume /etc/network/if-up.d handles starting ypbind
+        return 1
+}
+
+# Each init script action is defined below...
+
+start() {
+	local RET ERROR=
+
+	oname=`domainname`
+	if [ ! -f /etc/defaultdomain ];
+	then
+		echo "/etc/defaultdomain configuration file are missed from system." 
+		exit $NFOUND
+	fi
+	
+	nname=`cat /etc/defaultdomain`
+	if [ "$oname" != "$nname" ]; then
+		log_status_msg "Setting NIS domainname to: $nname"
+		$DOMAINNAME "$nname"
+	fi
+	log_status_msg "Starting $DESC: " -n
+	if [ "$NISSERVER" != "false" ]
+	then
+		log_status_msg "$BASENAME2 " -n
+		start_daemon $DAEMON2 $ARGS2
+        	RET=$?
+        	if [ $RET -eq 0 ]; then
+                	log_success_msg " " -n
+        	else
+                	log_failure_msg " failed ($RET: $ERROR)."
+                	return 1
+        	fi
+	fi
+	if [ "$NISSERVER" = master ]
+	then
+		E=""
+		if [ "$YPCHANGEOK" != "" ]
+		then
+			OIFS="$IFS"; IFS="$IFS,"
+			for i in $YPCHANGEOK
+			do
+				case "$i" in
+					chsh|chfn)
+						E="$E -e $i"
+						;;
+				esac
+			done
+			IFS="$OIFS"
+		fi
+		log_status_msg "$BASENAME3" -n
+                start_daemon $DAEMON3 -D $YPPWDDIR $E
+                RET=$?
+                if [ $RET -eq 0 ]; then
+                        log_success_msg " " -n
+                else
+                        log_failure_msg " failed ($RET: $ERROR)."
+                        return 1
+                fi
+		log_status_msg "$BASENAME4" -n
+                start_daemon $DAEMON4
+                RET=$?
+                if [ $RET -eq 0 ]; then
+                        log_success_msg " " -n
+                else
+                        log_failure_msg " failed ($RET: $ERROR)."
+                        return 1
+                fi
+	fi
+	if egrep -q '^(ypserver|domain)' /etc/yp.conf
+	then
+		broadcast=""
+	else
+		broadcast="-broadcast"
+	fi
+	if want_ypbind
+	then
+		log_status_msg "$BASENAME1" -n
+                start_daemon $DAEMON1 $broadcast
+                RET=$?
+                if [ $RET -eq 0 ]; then
+                        log_success_msg " " -n
+                else
+                        log_failure_msg " failed ($RET: $ERROR)."
+                        return 1
+	fi
+
+        	[ "`$DAEMON5 2>/dev/null`" = "" ] && sleep 1
+
+        	if [ "`$DAEMON5 2>/dev/null`" = "" ]
+	then
+                	bound=""
+                	log_status_msg "[binding to YP server " -n
+                	for i in 1 2 3 4 5 6 7 8 9 10
+                	do
+                        	sleep 1
+                        	log_status_msg "." -n
+                        	if [ "`$DAEMON5 2>/dev/null`" != "" ]
+                        	then
+                                	log_status_msg " done] " -n
+                                	bound="yes"
+                                	break
+                        	fi
+                	done
+                	[ "$bound" ] || log_status_msg " backgrounded] " -n
+	fi
+	fi
+	
+	log_status_msg ""
+	return 0
+}
+
+stop () {
+	local RET ERROR=
+
+	log_status_msg "Stopping $DESC: " -n
+	log_status_msg "$BASENAME1" -n
+	killproc $BASENAME1
+	RET=$?
+	if [ $RET -eq 0 ]; then
+		log_success_msg " " -n
+	else
+		log_failure_msg "failed ($RET: $ERROR). " -n
+		return 1
+	fi
+	log_status_msg "$BASENAME2" -n
+        killproc $BASENAME2
+        RET=$?
+        if [ $RET -eq 0 ]; then
+                log_success_msg " " -n
+        else
+                log_failure_msg "failed ($RET: $ERROR). " -n
+                return 1
+        fi
+	log_status_msg "$BASENAME3" -n
+        killproc $BASENAME3
+        RET=$?
+        if [ $RET -eq 0 ]; then
+                log_success_msg " " -n
+        else
+                log_failure_msg "failed ($RET: $ERROR). " -n
+                return 1
+        fi
+	log_status_msg "$BASENAME4" -n
+        killproc $BASENAME4
+        RET=$?
+        if [ $RET -eq 0 ]; then
+                log_success_msg " " -n
+        else
+                log_failure_msg "failed ($RET: $ERROR). " -n
+                return 1
+        fi
+
+	log_status_msg ""
+	return 0
+}
+
+restart() {
+	local RET
+
+	log_status_msg "Restarting $DESC..."
+	stop
+	sleep 2
+	start
+	RET=$?
+
+	return $RET
+}
+
+tryrestart() {
+	local RET
+
+	pidstatus $BASENAME2
+	RET=$?
+	if [ $RET -eq 0 ]; then
+		restart
+		RET=$?
+	else
+		RET=7
+	fi
+
+	return $RET
+}
+
+#
+# if the service does not support reload return code 3 should
+# be the result...
+#
+reload() {
+	local RET
+
+	log_status_msg "Reloading $DESC configuration..." -n
+	killproc $BASENAME2 -HUP
+	#
+	# repeat as necessary...
+	#
+	log_success_msg "done."
+
+	return 0
+}
+
+status() {
+	local RET
+	
+	printstatus $BASENAME2
+	RET=$?
+
+	return $RET
+}
+
+#
+# Everything after this should be the same for all init scripts
+#
+# See the policy manual for information on actions and return codes.
+#
+
+parse() {
+	case "$1" in
+  start)
+			start
+			return $?
+	;;
+  stop)
+	stop
+			return $?
+	;;
+  restart)
+			restart
+			return $?
+			;;
+		try-restart)
+			tryrestart
+			return $?
+			;;
+		reload | force-reload)
+			reload
+			return $?
+			;;
+		status)
+			status
+			return $?
+	;;
+  *)
+			echo "Usage: $INIT_NAME " \
+			"{start|stop|restart|try-restart|reload|" \
+			"force-reload|status}" >&2
+			;;
+	esac
+	
+	return 1
+}
+
+parse $@
+

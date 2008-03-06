@@ -1,0 +1,53 @@
+#! /bin/sh
+#
+# Name: reboot
+# Date: 2003-06-20 15:20
+# Author: MontaVista Software, Inc. <source@mvista.com>
+# Copyright: Copyright 1999-2003 MontaVista Software, Inc.
+# License: 2003 (c) MontaVista Software, Inc. This file is licensed
+#          under the terms of the GNU General Public License version 2.
+#          This program is licensed "as is" without any warranty of any
+#          kind, whether express or implied.
+#
+# Copyright 2002, 2003, 2004 Sony Corporation
+# Copyright 2002, 2003, 2004 Matsushita Electric Industrial Co., Ltd.
+#
+### BEGIN INIT INFO
+# Required-Start: 
+# Required-Stop:
+# Should-Start:
+# Should-Stop:
+# Default-Start: 6 
+# Default-Stop: 
+# Short-Description: reboot command
+# Description: Command for reboot
+### END INIT INFO 
+
+# Init script information
+INIT_NAME=reboot
+DESC="reboot command"
+
+# Individual Daemon information
+DAEMON1=/sbin/reboot
+if [ "`readlink $DAEMON1`" = "../bin/busybox" ] ; then
+ARGS1=""
+else
+ARGS1="-d -f -i"
+fi
+BASENAME1=${DAEMON1##*/}
+
+# Load init script configuration
+[ -f /etc/default/$INIT_NAME ] && . /etc/default/$INIT_NAME
+
+# Source the init script functions
+. /etc/init.d/init-functions
+
+# Verify daemons are installed
+NFOUND=5
+test -f $DAEMON1 || exit $NFOUND
+
+log_status_msg "Starting $DESC: " -n
+log_status_msg "$BASENAME1"
+log_status_msg "Rebooting..."
+
+$DAEMON1 $ARGS1

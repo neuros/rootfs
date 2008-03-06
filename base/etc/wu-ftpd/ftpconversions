@@ -1,0 +1,29 @@
+#
+# ftpconversions(5) -- wu-ftpd on-the-fly file conversion settings
+#
+# Fields (separated with `:') are:
+#  1. reserved (prefix to strip from real filename)
+#  2. suffix to strip from real filename
+#  3. reserved (prefix to add to real filename)
+#  4. suffix to add to real filename
+#  5. external command to do conversion (full paths under ~ftp/ required!)
+#  6. types of data which may be converted (T_REGular files, T_DIRectories, T_ASCII transfers)
+#  7. log which conversions were used (O_TARring, O_COMPRESSing, O_UNCOMPRESSing)
+#  8. description of conversion
+#
+ :.Z: : :/usr/bin/compress -d -c %s :T_REG|T_ASCII:O_UNCOMPRESS:uncompress
+ :    : :.Z:/usr/bin/compress -c %s:T_REG:O_COMPRESS:compress
+ :.gz: : :/bin/gzip -cd -- %s:T_REG|T_ASCII:O_UNCOMPRESS:gunzip
+ :    : :.gz:/bin/gzip -c9 -- %s:T_REG:O_COMPRESS:gzip
+ :.bz2: : :/usr/bin/bzip2 -cd -- %s:T_REG|T_ASCII:O_UNCOMPRESS:bunzip2
+ :    : :.bz2:/usr/bin/bzip2 -c9 -- %s:T_REG:O_COMPRESS:bzip2
+ :.zip: : :/usr/bin/unzip -q -c - %s:T_REG|T_DIR:O_TAR|O_UNCOMPRESS:unzip
+ :    : :.zip:/usr/bin/zip -q -r -9 - %s:T_REG|T_DIR:O_TAR|O_COMPRESS:zip
+ :    : :.tar:/bin/tar -chf - -- %s:T_REG|T_DIR:O_TAR:tar
+ :    : :.tar.Z:/bin/tar -chZf - -- %s:T_REG|T_DIR:O_COMPRESS|O_TAR:tar+compress
+ :    : :.tar.gz:/bin/tar -chzf - -- %s:T_REG|T_DIR:O_COMPRESS|O_TAR:tar+gzip
+ :    : :.tgz:/bin/tar -chzf - -- %s:T_REG|T_DIR:O_COMPRESS|O_TAR:tar+gzip
+ :    : :.tar.bz2:/bin/tar -chjf - -- %s:T_REG|T_DIR:O_COMPRESS|O_TAR:tar+bzip2
+ :    : :.ltar:/bin/tar -cf - -- %s:T_REG|T_DIR:O_TAR:tar
+ :    : :.ltar.Z:/bin/tar -cZf - -- %s:T_REG|T_DIR:O_COMPRESS|O_TAR:tar+compress
+ :    : :.ltar.gz:/bin/tar -czf - -- %s:T_REG|T_DIR:O_COMPRESS|O_TAR:tar+gzip

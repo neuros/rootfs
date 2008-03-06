@@ -1,0 +1,184 @@
+#! /bin/sh
+#
+# Name: skeleton 
+# Date: 2003-06-28 12:00
+# Author: MontaVista Software, Inc. <source@mvista.com>
+# Copyright: Copyright 1999-2003 MontaVista Software, Inc.
+# License: 2003 (c) MontaVista Software, Inc. This file is licensed
+#          under the terms of the GNU General Public License version 2.
+#          This program is licensed "as is" without any warranty of any
+#          kind, whether express or implied.
+# 
+# Copyright 2002, 2003, 2004 Sony Corporation
+# Copyright 2002, 2003, 2004 Matsushita Electric Industrial Co., Ltd.
+#
+### BEGIN INIT INFO
+# Required-Start: 
+# Required-Stop:
+# Should-Start:
+# Should-Stop:
+# Default-Start: 
+# Default-Stop: 
+# Short-Description: example file to build /etc/init.d/ scripts.
+# Description: example file to build /etc/init.d/ scripts.
+### END INIT INFO 
+# chkconfig: S 29 0 
+
+# Init script information
+INIT_NAME=module-init-tools
+DESC="Loads the appropriate modules in boot"
+
+# Individual Daemon information
+APP1=/sbin/depmod
+ARGS1="-a"
+BASENAME1=${APP1##*/}
+
+# repeat above for each daemon in this service
+
+# Load init script configuration
+[ -f /etc/default/$INIT_NAME ] && . /etc/default/$INIT_NAME
+
+# Source the init script functions
+. /etc/init.d/init-functions
+
+PATH=$PATH:/sbin:/usr/sbin
+
+# Verify daemons are installed
+[ "$1" = "status" ] && NFOUND=4 || NFOUND=5
+test -f $APP1 || exit $NFOUND
+
+# repeat the above for each daemon
+
+# load / unload all requested (specified) modules
+moduleAction() {
+	local RET ERROR=
+	local action=$1
+	local actionName=
+	
+	case "$action" in
+		"load")
+			log_success_msg "Calculating module dependencies"
+			$APP1 -a > /dev/null
+			log_success_msg "Loading modules: "
+			;;
+		"unload")
+			log_success_msg "Unloading modules: "
+			;;
+		*)
+			log_failure_message "Bad action specified"
+			exit 1
+			;;	
+	esac	
+	(cat /etc/modules; echo) | # make sure there is a LF at the end
+	while read module args 
+	do
+		case "$module" in 
+			\#*|"") continue ;;
+		esac
+		
+		case "$action" in	
+			"load")
+				modprobe $module $args 
+				;;
+			"unload")
+				rmmod $module
+				;;
+		esac	
+			
+		RET=$?
+		if [ $RET -eq 0 ]; then
+			echo "$module			OK"
+		else
+			echo "$module			FAILED"		
+		fi	
+	done	
+}
+
+# Each init script action is defined below...
+
+start() {
+	moduleAction "load"	
+	return 0
+}
+
+stop () {
+	moduleAction "unload"
+	return 0
+}
+
+restart() {
+	local RET
+
+	log_status_msg "Restarting $DESC..."
+	stop
+	start
+	RET=$?
+
+	return $RET
+}
+
+
+#
+# if the service does not support reload return code 3 should
+# be the result...
+#
+reload() {
+	local RET
+
+	log_status_msg "Reloading modules..." -n
+	stop
+	start
+	log_success_msg "done."
+
+	return 0
+}
+
+
+#
+# Everything after this should be the same for all init scripts
+#
+# See the policy manual for information on actions and return codes.
+#
+
+parse() {
+	case "$1" in
+		start)
+			start
+			return $?
+			;;
+		stop)
+			stop
+			return $?
+			;;
+		restart)
+			restart
+			return $?
+			;;
+		try-restart)
+			tryrestart
+			return $?
+			;;
+		reload)
+			reload
+			return $?
+			;;
+		force-reload)
+			forcereload
+			return $?
+			;;
+		status)
+			status
+			return $?
+			;;
+		*)
+			echo "Usage: $INIT_NAME " \
+			"{start|stop|restart|try-restart|reload|" \
+			"force-reload|status}" >&2
+			;;
+	esac
+	
+	return 1
+}
+
+parse $@
+

@@ -1,0 +1,40 @@
+#! /bin/sh
+#
+# Name: sendsigs 
+# Date: 2003-06-20 15:17
+# Author: MontaVista Software, Inc. <source@mvista.com>
+# Copyright: Copyright 1999-2003 MontaVista Software, Inc.
+# License: 2003 (c) MontaVista Software, Inc. This file is licensed
+#          under the terms of the GNU General Public License version 2.
+#          This program is licensed "as is" without any warranty of any
+#          kind, whether express or implied.
+#
+# Copyright 2002, 2003, 2004 Sony Corporation
+# Copyright 2002, 2003, 2004 Matsushita Electric Industrial Co., Ltd.
+#
+### BEGIN INIT INFO
+# Required-Start: 
+# Required-Stop:
+# Should-Start:
+# Should-Stop:
+# Default-Start: 0 6 
+# Default-Stop:
+# Short-Description: kill processes on reboot and halt. 
+# Description: This initscript sends kill and term signals to all processes
+#              on the system, when going in to reboot and halt.
+### END INIT INFO 
+PATH=/sbin:/bin:/usr/sbin:/usr/bin
+
+# If we are running this as part of busybox, we don't have killall5!
+if [ -e /sbin/killall5 ] ; then
+  # Kill all processes.
+  echo -n "Sending all processes the TERM signal... "
+  killall5 -15
+  echo "done."
+  sleep 5
+  echo -n "Sending all processes the KILL signal... "
+  killall5 -9
+  echo "done."
+fi
+
+: exit 0

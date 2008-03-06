@@ -1,0 +1,256 @@
+#! /bin/sh
+#
+# Name: mountvirtfs
+# Date: 2005-01-12
+# Author: MontaVista Software, Inc. <source@mvista.com>
+# Copyright: Copyright 1999-2005 MontaVista Software, Inc. 
+# License: 2003-2005 (c) MontaVista Software, Inc. This file is licensed
+#	   under the terms of the GNU General Public License version 2.
+#	   This program is licensed "as is" without any warranty of any
+#	   kind, whether express or implied.
+#
+# Copyright(C) 2002, 2003, 2004, 2005 Sony Corporation
+# Copyright(C) 2002, 2003, 2004, 2005 Matsushita Electric Industrial Co., Ltd.
+#
+# The code is based on original, written by Miquel Van Smoorenburg
+#
+# mountvirtfs	Mount all the virtual filesystems the kernel
+#		provides and that are required by default.
+#
+#		This script can be called several times without
+#		damage; it tries to mount the virtual filesystems
+#		only if not mounted yet, and only updates /etc/mtab
+#		if it is writable and there is a need to.
+#
+#		This functionality was previously provided by
+#		mountkernfs from the glibc package.
+#
+# chkconfig: S 3 0
+#
+# Version:	@(#)mountvirtfs  2.85-21  18-Jun-2004  miquels
+#
+
+# Script needs to be robust and continue when parts fail,
+# so we're not setting the "-e" flag.
+#set -e
+
+PATH=/lib/init:/bin:/sbin
+
+TTYGRP=5
+TTYMODE=620
+
+# Load init script configuration
+[ -f /etc/default/devpts ] && . /etc/default/devpts
+
+TMPFS_SIZE=
+[ -f /dev/default/tmpfs ] && . /etc/default/tmpfs
+
+# Source the init script functions
+. /etc/init.d/init-functions
+
+KERNEL=`uname -s`
+umask 022
+
+dir_writable () {
+	if [ -d "$1/" ] && [ -w "$1/" ] && touch -a "$1/" 2>/dev/null
+	then
+		return 0
+	fi
+	return 1
+}
+
+mountpoint () {
+	grep -qs $2 /proc/mounts
+	return $?
+}
+
+domount () {
+
+	# Directory present ?
+	if [ ! -d $3 ]
+	then
+		return
+	fi
+
+	# Do we support this filesystem type ?
+	TYPE=
+	if [ $1 = proc ]
+	then
+		case "$KERNEL" in
+			Linux|GNU)
+				TYPE=proc
+				;;
+			*)
+				TYPE=procfs
+				;;
+		esac
+	elif egrep -qs "$1\$" /proc/filesystems 2> /dev/null
+	then
+		TYPE=$1
+	elif egrep -qs "$2\$" /proc/filesystems 2>/dev/null
+	then
+		TYPE=$2
+	fi
+	if [ "$TYPE" = "" ]
+	then
+		return
+	fi
+
+	#
+	#	Get the options from /etc/fstab.
+	#
+	OPTS=
+	if [ -f /etc/fstab ]
+	then
+		exec 9<&0 0</etc/fstab
+		while read FDEV FDIR FTYPE FOPTS REST
+		do
+			case "$FDEV" in
+				""|\#*)
+					continue
+					;;
+			esac
+			if [ "$3" != "$FDIR" ] || [ "$TYPE" != "$FTYPE" ]
+			then
+				continue
+			fi
+			case "$FOPTS" in
+				noauto|*,noauto|noauto,*|*,noauto,*)
+					;;
+				?*)
+					OPTS="-o$FOPTS"
+					;;
+			esac
+			break
+		done
+		exec 0<&9 9<&-
+	fi
+
+	# See if anything is mounted yet
+	if ! mountpoint -q $3
+	then
+		# No, do it now
+		mount $MOUNT_N -t $TYPE $OPTS $4 $TYPE $3
+	else
+		# Need to update mtab only ?
+		if [ -n "$DO_MTAB" ] &&
+		   ! egrep -sq "^([^ ]+) +$3 +" /etc/mtab
+		then
+				mount -f -t $TYPE $OPTS $4 $TYPE $3
+		fi
+	fi
+}
+
+#
+#	We only create/modify /etc/mtab if the location where it is
+#	stored is writable.  If /etc/mtab is a symlink into /proc/
+#	then it is not writable.
+#
+DO_MTAB=
+MOUNT_N=-n
+MTAB_PATH="`readlink /etc/mtab || :`"
+case "$MTAB_PATH" in
+	/proc/*)
+		;;
+	/*)
+		if dir_writable ${MTAB_PATH%/*}
+		then
+			DO_MTAB=Yes
+			MOUNT_N=
+		fi
+		;;
+esac
+
+if [ -n "$DO_MTAB" ] && [ ! -f /etc/mtab ]
+then
+	:> /etc/mtab
+fi
+
+# Mount standard /proc, /sys and /tmp.
+domount proc "" /proc
+domount sysfs "" /sys
+domount tmpfs "" /tmp
+
+# Mount /dev/pts. Create master ptmx node if needed.
+#
+# As of 2.5.68, devpts is not automounted when using devfs. So we
+# mount devpts if it is compiled in (older devfs didn't require it
+# to be compiled in at all).
+#
+if [ "$KERNEL" = Linux ]
+then
+	#
+	#	Since kernel 2.5.something, devfs doesn't include
+	#	a standard /dev/pts directory anymore. So if devfs
+	#	is mounted on /dev we need to create that directory
+	#	manually.
+	#
+	if ! grep -qci '/dev/pts' /proc/mounts &&
+	   grep -qci 'devpts' /proc/filesystems &&
+	   touch /dev/.test 2>/dev/null
+	then
+		#
+		#	Create mountpoint and multiplexor device.
+		#
+		[ -d /dev/pts ] || mkdir --mode=755 /dev/pts
+		[ -c /dev/ptmx ] || mknod --mode=666 /dev/ptmx c 5 2
+
+		#	
+		#	Mount /dev/pts if needed.
+		#
+			
+		domount devpts "" /dev/pts -ogid=$TTYGRP,mode=$TTYMODE
+			
+		RET=$?
+		if [ ! $RET -eq 0 ]; then
+			log_failure_msg " failed ($RET: $ERROR)."
+			return 1
+		fi
+		rm -f /dev/.test
+	fi
+fi
+
+# Mount tmpfs.
+#
+# Around kernel version 2.3.3x, a memory based filesystem was
+# introduced to support POSIX shared memory, called shmfs. 
+# Later this filesystem was extended for general usage -
+# provided you set the CONFIG_TMPFS compile option and mount
+# it as type tmpfs.
+#
+# Early in the 2.4 kernel series, shmfs was renamed to tmpfs, but
+# you could mount it using both type shmfs and tmpfs. Starting
+# at kernel version 2.5.44, the shmfs alias was dropped.
+#
+# Confusingly, in kernels 2.3.x - 2.5.43 where both shmfs and
+# tmpfs are present, disabling CONFIG_TMPFS actually removes
+# support for shmfs, but tmpfs is still listed in /proc/filesystems
+# to support SYSV and POSIX shared memory, and it should still be
+# mounted under /dev/shm.
+#
+# Recommendation: always enable CONFIG_TMPFS and always mount
+# using the tmpfs type. Forget about shmfs.
+# 
+# Tmpfs can be used as memory filesystem, so you can limit tmpfs
+# max size using /etc/default/tmpfs to prevent tmpfs from using
+# up all system memory.
+#
+if [ -n "$TMPFS_SIZE" ]
+then
+	tmpfs_opt="-osize=${TMPFS_SIZE}"
+fi
+domount tmpfs shmfs /dev/shm $tmpfs_opt
+
+# Mount usbfs/usbdevfs if /proc/bus/usb is present.
+#
+# Usbfs/usbdevfs is used for USB related binaries/libraries.
+# "usbfs" and "usbdevfs" are the exact same filesystem.
+# "usbdevfs" was renamed to "usbfs" by linux usb developers,
+# because people sometimes mistook it as a part of devfs. Usbfs
+# will be superseded by other filesystems (e.g. sysfs), and when
+# it becomes obsolete the mount action below should be removed.
+#
+if [ -d /proc/bus/usb ]
+then
+	domount usbfs usbdevfs /proc/bus/usb
+fi

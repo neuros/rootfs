@@ -1,0 +1,9 @@
+#%PAM-1.0
+auth		required	pam_nologin.so
+auth		required	pam_securetty.so
+auth		sufficient	pam_rhosts_auth.so
+auth		required	pam_unix.so nullok
+account		required	pam_unix.so
+password 	required	pam_unix.so nullok use_authtok obscure \
+					    min=4 max=8
+session		required	pam_unix.so

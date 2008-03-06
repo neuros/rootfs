@@ -1,0 +1,35 @@
+#!/bin/sh
+
+# the default Debian ntp.conf enables logging of various statistics to the
+# /var/log/ntpstats directory.  the daemon automatically changes to a new
+# datestamped set of files at midnight, so all we need to do is delete old
+# ones, and compress the ones we're keeping so disk usage is controlled
+
+if [ -d /var/log/ntpstats ]
+then
+	# only keep a week's depth of these
+	find /var/log/ntpstats -type f -mtime +7 -exec rm {} \;
+
+	# compress whatever is left to save space
+	cd /var/log/ntpstats 
+	ls loopstats.???????? peerstats.???????? > /dev/null 2>&1
+	if [ $? = 0 ]
+	then
+
+		# note that gzip won't actually compress the filenames that 
+		# are actually hard links to the live/current files... so this
+		# compresses yesterday and previous, leaving the live log alone
+		# -- we supress the warnings gzip issues about not compressing
+		# the linked file, which is why this isn't a one-liner
+
+		gzip --best --quiet loopstats.???????? peerstats.???????? 
+  		return=$?
+  		case $return in 
+    		2)	exit 0			# Squash all warnings
+			;;
+    		*)	exit $return		# but let real errors through
+			;;
+  		esac
+	fi
+fi
+

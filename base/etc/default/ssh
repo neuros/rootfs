@@ -1,0 +1,3 @@
+# Set AUTOKEYGEN=yes to make the ssh init script autogenerate
+# the required keys if they are not on the system.
+AUTOKEYGEN=no

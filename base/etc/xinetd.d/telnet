@@ -1,0 +1,15 @@
+# default: on
+# description: The telnet server serves telnet sessions; it uses \
+#	unencrypted username/password pairs for authentication.
+service telnet
+{
+	flags		= REUSE
+	socket_type	= stream        
+	protocol	= tcp
+	wait		= no
+	user		= root
+	server		= /usr/sbin/in.telnetd
+	server_args	= -h
+	log_on_failure	+= USERID
+}
+

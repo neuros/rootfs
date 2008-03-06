@@ -1,0 +1,282 @@
+# -*-Shell-script-*-
+#
+# functions	This file contains functions to be used by most or all
+#		shell scripts in the /etc/init.d directory.
+#
+
+ACTIVE_pids=""
+STALE_pids=""
+
+# Make sure umask is sane
+umask 022
+
+# A function to start a program.
+start_daemon() {
+	# Test syntax.
+	local force= args=
+	local base= full= nice=  pid=
+	local pidfile=
+	rc=0
+	while [ "$1" != "" ]
+	do
+	    case $1 in
+		-f)
+		    force="force"
+		    shift
+		    ;;
+		-n)
+		    shift
+		    nice=$1
+		    shift
+		    ;;
+		-p)
+		    shift
+		    pidfile="${1##*/}"
+		    shift
+		    ;;
+		*)
+		    base="${1##*/}"
+		    full=$1
+		    shift
+		    args="$@"
+		    shift $#
+		    ;;
+	    esac
+	done
+
+	# See if it's already running.
+	if [ "$pidfile" != "" ]; then
+		pidstatus -p "$pidfile" > /dev/null
+	else
+		pidstatus "$base" > /dev/null
+	fi
+	pid="$ACTIVE_pids" 
+	
+	[ -n "${pid:-}" -a -z "${force:-}" ] && return 0
+
+	# And start it up.
+	[ "$nice" = "" ] && nice="0"
+	nice -n $nice $full $args
+	rc=$?
+
+	# let's join this two sets of pids
+	local pid_old=""
+	local pid_new=""
+	[ -f /var/run/$base.pid ] && pid_old=`cat /var/run/$base.pid` 
+	pid_new=`pidof $full`
+	for p in $pid_old ; do
+		echo $pid_new | grep $p >/dev/null 2>&1 || pid_new="$pid_new $p"
+	done
+	echo $pid_new > /var/run/$base.pid
+}
+
+# Check if $pid (could be plural) are running
+checkpid() {
+	local i
+
+	for i in $* ; do
+		[ -d "/proc/$i" ] && return 0
+	done
+	return 1
+}
+
+# A function to stop a program.
+killproc() {
+	rc=0
+	# Test syntax.
+	if [ $# = 0 ]; then
+		echo "killproc {program|-p pidfile} [-signal]"
+		return 1
+	fi
+
+	local base=""
+	local sig=""
+	local pidfile=""
+
+	while [ "$1" != "" ]
+	do
+	    case "$1" in
+		-p)
+		    shift
+		    pidfile="${1##*/}"
+		    shift
+		    ;;
+		-*)
+		    sig=$1
+		    shift
+		    ;;
+			
+		*)
+		    [ "$base" = "" ] && base="${1##*/}"
+		    shift
+		    ;;
+	   esac
+	done
+	[ "$pidfile" = "" ] && pidfile="$base.pid"
+
+	# Find pid.
+	pidstatus "-p" "$pidfile" > /dev/null
+	pid="$ACTIVE_pids"
+	[ "$pid" = "" ] && return 0
+
+	# Kill it.
+	if [ "$sig" = "" ]
+	then 
+	    for p in $pid 
+	    do
+		kill -TERM $p
+	    done
+	    usleep 100000
+	    if checkpid $pid && sleep 1 &&
+	       checkpid $pid && sleep 3 && 
+               checkpid $pid ; then
+		kill -KILL $pid
+		usleep 100000
+	    fi
+	    checkpid $pid
+	    rc=$?
+	    rc=$((! $rc))
+	else
+	    # use specified level only
+            if checkpid $pid; then
+		kill $sig $pid
+		rc=$?
+	    fi
+	fi
+
+	# Remove pid file if any.
+	if [ "$sig" = "" ]; then
+	    rm -f /var/run/$pidfile
+	fi
+	return $rc
+}
+
+# A function to find the pid of a program.
+pidofproc() {
+	local pidfile=""
+	rc=0
+
+	[ "$#" -eq 0 ] && return 4
+	while [ "$1" != "" ]
+	do
+	    case "$1" in
+		-p)
+		    shift
+		    pidfile=${1##*/}
+		    shift
+		    ;;
+		*)
+		   base=${1##*/}
+		   shift
+		   ;;
+	    esac
+	done
+	[ "$pidfile" = "" ] && pidfile="$base.pid"
+
+	# First try "/var/run/*.pid" files
+	if [ -f /var/run/$pidfile ] 
+	then
+	    local  pid=
+	    pid=`cat /var/run/$pidfile`
+	    [ -n "$pid" ] && echo $pid || rc=4
+	else rc=3	
+	fi
+	return $rc
+}
+
+pidstatus() {
+	ACTIVE_pids=""
+	STALE_pids=""
+	local all_pids=""
+	rc=0
+
+	[ "$#" -eq 0 ] && return 4
+	all_pids=`pidofproc $@`
+	rc=$?
+	[ $rc -ne 0 ] && return $rc
+	echo "$all_pids"
+	for p in $all_pids ; do
+	    [ -d "/proc/$p" ] && ACTIVE_pids="$ACTIVE_pids $p" || STALE_pids="$STALE_pids $p"
+	done
+	return $rc
+}
+
+printstatus() {
+	local base
+	local pids
+	local pidfile
+	
+	[ "$#" -eq 0 ] && return 4
+	while [ "$1" != "" ]
+	do
+	    case "$1" in
+	        -p)
+	            shift
+	            pidfile=${1##*/}
+	            shift
+	            ;;
+	        *)
+	           base=${1##*/}
+	           shift
+	           ;;
+	   esac
+	done
+	[ "$base" = "" ] && return 4
+	[ "$pidfile" = "" ] && pidfile="$base.pid"
+	pidstatus "-p" "$pidfile" > /dev/null
+	rc=$?
+	if [ $rc -ne 0 ]
+	then
+	    echo "$base is stopped." 
+	    return $rc
+	fi
+	[ "$STALE_pids"  != "" ] && echo "$base pid(s) $STALE_pids are dead but still in pid file."
+	[ "$ACTIVE_pids" != "" ] && echo "$base pid(s) $ACTIVE_pids are running..."
+	return $rc
+}
+
+log_success_msg() {
+  if [ "$1" != "" ] && [ "$1" != "-n" ]
+  then 
+    if [ "$2" = "-n" ]
+    then echo -n "$1"
+    else echo "$1"
+    fi
+  fi
+  return 0
+}
+
+log_failure_msg() {
+  if [ "$1" != "" ] && [ "$1" != "-n" ]
+  then
+    if [ "$2" = "-n" ]
+    then echo -n "$1" 
+    else echo "$1" 
+    fi
+  fi
+  return 1
+}
+
+log_warning_msg() {
+  if [ "$1" != "" ] && [ "$1" != "-n" ]
+  then
+    if [ "$2" = "-n" ]
+    then echo -n "$1"
+    else echo "$1"
+    fi
+  fi
+  return 0
+}
+
+log_status_msg() {
+  if [ "$1" != "" ] && [ "$1" != "-n" ]
+  then
+    if [ "$2" = "-n" ]
+    then echo -n "$1"
+    else echo "$1"
+    fi
+  fi
+  return 0
+}
+
+

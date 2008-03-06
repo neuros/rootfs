@@ -1,0 +1,215 @@
+#! /bin/sh
+#
+# Name: messagebus 
+# Date: 2005-02-28 14:00
+# Author: MontaVista Software, Inc. <source@mvista.com>
+# Copyright: Copyright 1999-2005 MontaVista Software, Inc.
+# License: 2005 (c) MontaVista Software, Inc. This file is licensed
+#          under the terms of the GNU General Public License version 2.
+#          This program is licensed "as is" without any warranty of any
+#          kind, whether express or implied.
+# 
+# Copyright 2002, 2003, 2004 Sony Corporation
+# Copyright 2002, 2003, 2004 Matsushita Electric Industrial Co., Ltd.
+#
+### BEGIN INIT INFO
+# Required-Start: 
+# Required-Stop:
+# Should-Start:
+# Should-Stop:
+# Default-Start: 
+# Default-Stop: 
+# Short-Description: The D-BUS systemwide message bus.
+# Description: messagebus is an init script that launches this systemwide daemon. This daemon is largely used for broadcasting system events and other messages among multiple programs that connect to this systemwide daemon. 
+### END INIT INFO 
+# chkconfig: 2345 20 20
+
+# Init script information
+INIT_NAME=dbus-1
+DESC="system message bus"
+
+# Individual Daemon information
+DAEMON1=/usr/bin/dbus-daemon-1
+ARGS1=""
+BASENAME1=${DAEMON1##*/}
+ENABLED=1
+PIDDIR=/var/run/dbus
+PIDFILE=$PIDDIR/pid
+EVENTDIR=/etc/$INIT_NAME/event.d
+DAEMONUSER="messageuser"
+
+# Load init script configuration
+[ -f /etc/default/$INIT_NAME ] && . /etc/default/$INIT_NAME
+
+# Verify daemon are enabled
+test "$ENABLED" != "0" || exit 0
+
+# Source the init script functions
+. /etc/init.d/init-functions
+
+# Verify daemons are installed
+[ "$1" = "status" ] && NFOUND=4 || NFOUND=5
+test -f $DAEMON1 || exit $NFOUND
+
+# repeat the above for each daemon
+
+# Each init script action is defined below...
+
+start() {
+	local RET ERROR=
+	
+	log_status_msg "Starting $DESC: " -n
+	log_status_msg "$BASENAME1" -n
+        if [ ! -d $PIDDIR ]; then
+	        mkdir -p $PIDDIR
+		chown $DAEMONUSER $PIDDIR
+		chgrp $DAEMONUSER $PIDDIR
+	fi
+	start_daemon $DAEMON1 $ARGS1
+	RET=$?
+	if [ $RET -eq 0 ]; then
+		log_success_msg ". " 
+		else
+		log_failure_msg " failed ($RET: $ERROR)."
+		return 1
+		fi
+	
+	# repeat above for each daemon...
+	
+	log_status_msg ""
+	return 0
+}
+
+stop () {
+	local RET ERROR=
+
+	log_status_msg "Stopping $DESC: " -n
+	log_status_msg "$BASENAME1" -n
+	killproc $BASENAME1
+	RET=$?
+	if [ $RET -eq 0 ]; then
+		log_success_msg ". " 
+	else
+		log_failure_msg "failed ($RET: $ERROR). " 
+		return 1
+	fi
+
+	# repeat above for each daemon...
+
+	log_status_msg ""
+	return 0
+}
+
+restart() {
+	local RET
+
+	log_status_msg "Restarting $DESC..."
+	stop
+	start
+	RET=$?
+
+	return $RET
+}
+
+tryrestart() {
+	local RET
+
+	pidstatus $BASENAME1
+	RET=$?
+	if [ $RET -eq 0 ]; then
+		restart
+		RET=$?
+	else
+		RET=7
+	fi
+
+	return $RET
+}
+
+#
+# if the service does not support reload return code 3 should
+# be the result...
+#
+reload() {
+	local RET
+
+	log_status_msg "Reloading $DESC configuration..." -n
+	# killproc $BASENAME -HUP
+	#
+	# repeat as necessary...
+	#
+	log_success_msg "done."
+
+	return 0
+}
+
+forcereload() {
+	local RET
+
+	reload
+	RET=$?
+	if [ $RET -ne 0 ]; then
+		restart
+		RET=$?
+	fi
+	
+	return $RET
+}
+
+status() {
+	local RET
+	
+	printstatus $BASENAME1
+	RET=$?
+
+	return $RET
+}
+
+#
+# Everything after this should be the same for all init scripts
+#
+# See the policy manual for information on actions and return codes.
+#
+
+parse() {
+	case "$1" in
+  start)
+			start
+			return $?
+	;;
+  stop)
+			stop
+			return $?
+			;;
+		restart)
+			restart
+			return $?
+			;;
+		try-restart)
+			tryrestart
+			return $?
+	;;
+		reload)
+			reload
+			return $?
+			;;
+		force-reload)
+			forcereload
+			return $?
+			;;
+		status)
+			status
+			return $?
+	;;
+  *)
+			echo "Usage: $INIT_NAME " \
+			"{start|stop|restart|try-restart|reload|" \
+			"force-reload|status}" >&2
+	;;
+	esac
+	
+	return 1
+}
+
+parse $@
+

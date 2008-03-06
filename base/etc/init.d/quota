@@ -1,0 +1,284 @@
+#! /bin/sh
+#
+# Name: quota 
+# Date: 2003-06-28 13:00
+# Author: MontaVista Software, Inc. <source@mvista.com>
+# Copyright: Copyright 1999-2003 MontaVista Software, Inc.
+# License: 2003 (c) MontaVista Software, Inc. This file is licensed
+#          under the terms of the GNU General Public License version 2.
+#          This program is licensed "as is" without any warranty of any
+#          kind, whether express or implied.
+# 
+# Copyright 2002, 2003, 2004 Sony Corporation
+# Copyright 2002, 2003, 2004 Matsushita Electric Industrial Co., Ltd.
+#
+### BEGIN INIT INFO
+# Required-Start: 
+# Required-Stop:
+# Should-Start:
+# Should-Stop:
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
+# Short-Description: start/stop quota service
+# Description: start/stop quota service
+### END INIT INFO 
+# chkconfig: 2345 18 82
+
+# Init script information
+INIT_NAME=quota
+DESC="quota service"
+
+# Individual Daemon information
+DAEMON1=/bin/sleep
+BASENAME1=${DAEMON1##*/}
+QCHECK=/sbin/quotacheck
+QON=/sbin/quotaon
+QOFF=/sbin/quotaoff
+QISOFF=/var/lib/quota/off
+QISNEW=/var/lib/quota/new
+TOUCH=/bin/touch
+
+ALLFLAGS=-aug
+CHECKFLAGS=${ALLFLAGS}m
+USERFLAGS=-uc
+GROUPFLAGS=-gc
+
+# Load init script configuration
+[ -f /etc/default/$INIT_NAME ] && . /etc/default/$INIT_NAME
+
+# Source the init script functions
+. /etc/init.d/init-functions
+
+# Verify daemons are installed
+[ "$1" = "status" ] && NFOUND=4 || NFOUND=5
+test -x $DAEMON1 -a -x $QCHECK -a -x $QOFF -a -x $QON -a -x $TOUCH || exit $NFOUND
+
+# Each init script action is defined below...
+
+scan_fstab()
+{
+        list=`grep $1 /etc/fstab | \
+              sed -e 's/\(^[^[:space:]]*[[:space:]]*[^[:space:]]*[[:space:]]*[^[:space:]]*\).*/\1/g' \
+                  -e 's/^[^[:space:]]*[[:space:]]*//g'`
+}
+	    
+start() {
+	local RET ERROR=
+
+	# Check if quota already has been enabled
+	$QON -ap|grep -q "is off" || exit 6
+
+	# Check all filesystems if quota is new or wasn't shut down correctly
+	log_status_msg 'Checking quotas...' -n
+	if [ ! -f $QISOFF -o -f $QISNEW ] 
+	then
+		$QCHECK $CHECKFLAGS || $QCHECK -c $CHECKFLAGS
+		RET=$?
+        	if [ $RET -eq 0 ]; then
+                	log_success_msg "done. "
+        	else
+                	log_failure_msg " failed ($RET: $ERROR)."
+                	return 1
+        	fi
+	else
+		# if some filesystems are new check just these filesystems	
+		log_status_msg "usrquota " -n	
+		scan_fstab "usrquota"
+		set $list
+
+		while [ $# -ge 2 ]
+		do
+			if [ "$2" != "xfs" ]
+			then	
+			        if test ! -e $1/quota.user -a ! -e $1/aquota.user; then
+					log_warning_msg "Warning: user quota not configured in filesystem \`$1.'"
+				elif test ! -e $1/aquota.user; then
+					test ! -s $1/quota.user && $QCHECK $USERFLAGS $1; RET=$?
+				elif test ! -s $1/aquota.user; then
+					$QCHECK $USERFLAGS $1
+					RET=$?
+				fi
+				fi
+			if [ $RET -eq 0 ]; then
+		                log_success_msg ". "
+        		else
+               			log_failure_msg " failed ($RET: $ERROR)."
+                		return 1
+			fi
+			shift; shift
+		done
+
+		log_status_msg "grpquota " -n
+		scan_fstab "grpquota"
+		set $list
+		
+		while [ $# -ge 2 ]
+		do
+			if [ "$2" != "xfs" ]
+			then	
+		        	if test ! -e $1/quota.group -a ! -e $1/aquota.group; then
+					log_warning_msg "Warning: group quota not configured in filesystem \`$1.'"
+				elif test ! -e $1/aquota.group; then
+					test ! -s $1/quota.group && $QCHECK $GROUPFLAGS $1; RET=$?	
+				elif test ! -s $1/aquota.group; then
+					$QCHECK $GROUPFLAGS $1
+					RET=$?	
+				fi
+				fi
+			if [ $RET -eq 0 ]; then
+                                log_success_msg ". "
+                        else
+                                log_failure_msg " failed ($RET: $ERROR)."
+                                return 1
+			fi
+			shift; shift
+		done
+		log_success_msg 'done.'
+	fi
+
+	# Turn quotas on.
+	log_status_msg "Turning on quotas" -n
+	$QON $ALLFLAGS
+	RET=$?
+	if [ $RET -eq 0 ]; then
+		log_success_msg " done."
+        else
+                log_failure_msg " failed ($RET: $ERROR)."
+                return 1
+	fi
+
+	# Remove quota-off and quota-new files
+	rm -f $QISOFF $QISON
+	
+	return 0
+}
+
+stop () {
+	local RET ERROR=
+
+	log_status_msg "Turning off $DESC: " -n
+	log_status_msg "$BASENAME1" -n
+	$QOFF $ALLFLAGS 
+	RET=$?
+	if [ $RET -eq 0 ]; then
+		log_success_msg ". "
+	else
+		log_failure_msg "failed ($RET: $ERROR). " -n
+		return 1
+	fi
+		# Create quota-on file
+	$TOUCH $QISOFF
+
+	log_status_msg ""
+	return 0
+}
+
+restart() {
+	local RET
+
+	log_status_msg "Restarting $DESC..."
+	stop
+	start
+	RET=$?
+
+	return $RET
+}
+
+tryrestart() {
+	local RET
+
+	pidstatus $BASENAME
+	RET=$?
+	if [ $RET -eq 0 ]; then
+		restart
+		RET=$?
+	else
+		RET=7
+	fi
+
+	return $RET
+}
+
+#
+# if the service does not support reload return code 3 should
+# be the result...
+#
+reload() {
+	local RET
+
+	log_status_msg "Reloading $DESC configuration..." -n
+	# killproc $BASENAME -HUP
+	#
+	# repeat as necessary...
+	#
+	log_success_msg "done."
+
+	return 0
+}
+
+forcereload() {
+	local RET
+
+	reload
+	RET=$?
+	if [ $RET -ne 0 ]; then
+		restart
+		RET=$?
+	fi
+	
+	return $RET
+}
+
+status() {
+	local RET
+	
+	printstatus $BASENAME
+	RET=$?
+
+	return $RET
+}
+
+#
+# Everything after this should be the same for all init scripts
+#
+# See the policy manual for information on actions and return codes.
+#
+
+parse() {
+	case "$1" in
+		start)
+			start
+			return $?
+			;;
+		stop)
+			stop
+			return $?
+			;;
+		restart|force-reload)
+			restart
+			return $?
+			;;
+		try-restart)
+			tryrestart
+			return $?
+			;;
+		reload)
+			reload
+			return $?
+			;;
+		status)
+			status
+			return $?
+	;;
+  *)
+			echo "Usage: $INIT_NAME " \
+			"{start|stop|restart|try-restart|reload|" \
+			"force-reload|status}" >&2
+	;;
+	esac
+	
+	return 1
+}
+
+parse $@
+

@@ -1,0 +1,4 @@
+# Format: REGISTER device PERMISSIONS user.group mode
+
+# Make /dev/pts LSB-compliant, this makes grantpt() work right.
+REGISTER       ^pts/.*         PERMISSIONS     -1.tty  0620

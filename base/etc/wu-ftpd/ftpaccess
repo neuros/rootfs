@@ -1,0 +1,111 @@
+# Debian default wu-ftpd `ftpaccess' configuration file, derived from
+# the `ftpaccess.heavy' example in wu-ftpd sources.
+# For more options/commands see ftpaccess(5) and /usr/share/doc/wu-ftpd/*.
+
+# Some of the example message files have been translated to Spanish,
+# and are available in /usr/share/doc/wu-ftpd/examples/.
+# (thanks to Javier Fernandez-Sanguino Pen~a <jfs@dat.etsit.upm.es>
+
+
+# E-mail address of the FTP admin, can be accessed via the %E in messages.
+email ftpadmin@misconfigured.host
+
+# Which UIDs and GIDs may, and which may not use the FTP service.
+#deny-uid %-99
+#deny-gid %-99
+#allow-uid ftp ftpadmin
+#allow-gid ftp ftpadmin
+
+# Maximum number of retries after login failures, before disconnecting.
+#loginfails 5
+
+# Can users see anything else but their home directory
+#restricted-uid lamer
+#unrestricted-gid ftpadmin
+
+# Allow use of private file for SITE GROUP and SITE GPASS?
+#private	no
+
+# What kind of greeting to give.
+#greeting <full|brief|terse|text somemessage>
+
+# Banner to show immediately on connect.
+#banner /etc/wu-ftpd/welcome.msg
+
+# Deny access to specified hosts, with message.
+#deny	*.microsoft.com			/etc/wu-ftpd/msg.deny
+#deny	/etc/wu-ftpd/denied.hosts	/etc/wu-ftpd/msg.deny
+# !nameserved means hosts that can't be resolved.
+#deny	!nameserved	/etc/wu-ftpd/msg.nodns
+
+# Various DNS related options.
+#dns refuse_mismatch <filename> [override]
+#dns refuse_no_reverse <filename> [override]
+#dns resolveroptions [options]
+
+# Class	name	typelist		addresses
+#class	local 	real,guest,anonymous	*.my.domain 192.168.0.0
+#class	remote 	real,guest,anonymous	*
+class   all	real,guest,anonymous	*
+
+# Limit	who	how many	date/time	message file
+#limit	local	20	Any			/etc/wu-ftpd/msg.toomany
+#limit	remote	100	SaSu|Any1800-0600	/etc/wu-ftpd/msg.toomany
+limit   all   	10   	Any        		/etc/wu-ftpd/msg.toomany
+
+# The files that wu-ftpd will recognize as must-be-read, and display them.
+message /welcome.msg            login
+message .message                cwd=*
+
+# The files that wu-ftpd will recognize as should-be-read, and warn about them.
+readme  README*    login
+readme  README*    cwd=*
+
+# Whether to use compression.
+compress        yes             local remote all
+tar             yes             local remote all
+
+# Logging of actions.
+#log commands  anonymous,guest,real
+#log security
+#log syslog
+log transfers anonymous,guest,real inbound,outbound
+
+# The file wu-ftpd will check to see if the server is going to be shut down.
+# (use ftpshut to generate it)
+shutdown /etc/wu-ftpd/shutmsg
+
+# These files are marked unretrievable
+noretrieve /etc/passwd /etc/group
+noretrieve core
+
+# The directory to which anonymous FTP user will chroot to.
+# Note: if you change this {add,rm}ftpuser may stop functioning.
+#anonymous-root /home/ftp
+
+# Password verification for the anonymous FTP user.
+#		<none|trivial|rfc822>  [<enforce|warn>]
+passwd-check    rfc822  enforce
+
+# Maximum connection time in minutes
+#limit-time anonymous 30
+
+# Some permissions for the anonymous FTP user.
+# All the following default to "yes" for everybody
+rename		no	anonymous		# rename permission?
+delete		no	anonymous		# delete permission?
+overwrite	no	anonymous		# overwrite permission?
+chmod		no	anonymous		# chmod permission?
+umask		no	anonymous		# umask permission?
+
+# Anonymous FTP directories upload settings
+# 	anon-ftp-root	path		allow?	owner	group	mode	dirs?
+upload	/home/ftp	*		no
+upload	/home/ftp	/pub/incoming	yes	ftp	daemon	0666	nodirs
+
+# What can a filename contain (this /etc is under the anonymous-FTP root)
+path-filter	anonymous	/etc/pathmsg  ^[-+A-Za-z0-9_.]*$  ^\.  ^-
+
+# Shortcuts for anonymous FTP incoming (note: the ':' isn't obligatory)
+alias	incoming:	/pub/incoming
+cdpath	/pub

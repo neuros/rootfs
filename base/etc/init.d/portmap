@@ -1,0 +1,157 @@
+#! /bin/sh
+#
+# Name: portmap 
+# Date: 2003-06-23 15:50
+# Author: MontaVista Software, Inc. <source@mvista.com>
+# Copyright: Copyright 1999-2003 MontaVista Software, Inc.
+# License: 2003 (c) MontaVista Software, Inc. This file is licensed
+#          under the terms of the GNU General Public License version 2.
+#          This program is licensed "as is" without any warranty of any
+#          kind, whether express or implied.
+#
+# Copyright 2002, 2003, 2004 Sony Corporation
+# Copyright 2002, 2003, 2004 Matsushita Electric Industrial Co., Ltd.
+#
+### BEGIN INIT INFO
+# Required-Start: networking
+# Required-Stop:
+# Should-Start:
+# Should-Stop:
+# Default-Start: S
+# Default-Stop: 0 1 2 3 4 5 6
+# Short-Description: start/stop portmap daemon.
+# Description: start/stop portmap daemon.
+### END INIT INFO 
+# chkconfig: S 41 85
+
+# Init script information
+INIT_NAME=portmap
+DESC="portmap daemon"
+
+# Individual Daemon information
+DAEMON1=/sbin/portmap
+ARGS1=""
+BASENAME1=${DAEMON1##*/}
+DAEMON2=/sbin/pmap_set
+DAEMON3=/sbin/pmap_dump
+FILE1=/var/run/portmap.upgrade-state
+
+# Load init script configuration
+[ -f /etc/default/$INIT_NAME ] && . /etc/default/$INIT_NAME
+
+# Source the init script functions
+. /etc/init.d/init-functions
+
+# Verify daemons are installed
+[ "$1" = "status" ] && NFOUND=4 || NFOUND=5
+test -f $DAEMON1 || exit $NFOUND
+test -f $DAEMON2 || exit $NFOUND
+test -f $DAEMON3 || exit $NFOUND
+
+# Each init script action is defined below...
+
+start() {
+	local RET ERROR=
+	
+	log_status_msg "Starting $DESC: " -n
+	log_status_msg "$BASENAME1" -n
+	start_daemon $DAEMON1 $ARGS1
+	RET=$?
+	if [ $RET -eq 0 ]; then
+		log_success_msg ". "
+	else
+		log_failure_msg " failed ($RET: $ERROR)."
+		return 1
+	fi
+
+        if [ -f $FILE1 ]
+	then
+		log_status_msg "Restoring old RPC service information..." -n
+          sleep 1 # needs a short pause or pmap_set won't work. :(
+          	$DAEMON2 < "$FILE1"
+		RET=$?
+		if [ $RET -eq 0 ]; then
+                	log_success_msg ". "
+		else
+                	log_failure_msg " failed ($RET: $ERROR)."
+                	return 1
+        	fi
+          	rm -f $FILE1
+        fi
+
+	log_status_msg ""
+	return 0
+}
+
+stop () {
+	local RET ERROR=
+
+	log_status_msg "Stopping $DESC: " -n
+	log_status_msg "$BASENAME1" -n
+	killproc $BASENAME1
+	RET=$?
+	if [ $RET -eq 0 ]; then
+		log_success_msg ". "
+	else
+		log_failure_msg "failed ($RET: $ERROR). " -n
+		return 1
+	fi
+
+	# repeat above for each daemon...
+
+	log_status_msg ""
+	return 0
+}
+
+restart() {
+	local RET
+
+	log_status_msg "Restarting $DESC..."
+
+        $DAEMON3 > $FILE1
+        stop
+        start
+	RET=$?
+        if [ ! -f $FILE1 ]; then
+          sleep 1
+          $DAEMON2 < $FILE1
+        fi
+        rm -f $FILE1
+	return $RET
+}
+
+#
+# Everything after this should be the same for all init scripts
+#
+# See the policy manual for information on actions and return codes.
+#
+
+parse() {
+	case "$1" in
+		start)
+			start
+			return $?
+	;;
+    stop)
+			stop
+			return $?
+	;;
+		restart | force-reload)
+			restart
+			return $?
+	;;
+		reload | try-restart)
+			return 0
+	;;
+    *)
+			echo "Usage: $INIT_NAME " \
+			"{start|stop|restart|try-restart|reload|" \
+			"force-reload}" >&2
+	;;
+	esac
+	
+	return 1
+}
+
+parse $@
+

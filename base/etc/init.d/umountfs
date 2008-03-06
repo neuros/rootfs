@@ -1,0 +1,27 @@
+#! /bin/sh
+#
+# umountfs	Turn off swap and unmount all local file systems.
+#
+# Version:      @(#)umountfs  2.85-16  03-Jun-2004  miquels@cistron.nl
+#
+# chkconfig: 06 40 0
+#
+
+PATH=/sbin:/bin:/usr/sbin:/usr/bin
+
+echo -n "Deactivating swap..."
+umount -ttmpfs -a -r
+swapoff -a
+echo "done."
+
+#
+#	Umount all filesystems except the virtual ones.
+#
+echo -n "Unmounting local filesystems..."
+umount -tnoproc,noprocfs,nodevfs,nosysfs,nousbfs,nousbdevfs,nodevpts -d -a -r
+echo "done."
+
+# This is superfluous.
+mount -n -o remount,ro /
+
+: exit 0

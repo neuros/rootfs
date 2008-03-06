@@ -1,0 +1,240 @@
+#! /bin/sh
+#
+# Name: ssh  
+# Date: 2003-06-28 12:40
+# Author: MontaVista Software, Inc. <source@mvista.com>
+# Copyright: Copyright 1999-2003 MontaVista Software, Inc.
+# License: 2003 (c) MontaVista Software, Inc. This file is licensed
+#          under the terms of the GNU General Public License version 2.
+#          This program is licensed "as is" without any warranty of any
+#          kind, whether express or implied.
+#
+# Copyright 2002, 2003, 2004 Sony Corporation
+# Copyright 2002, 2003, 2004 Matsushita Electric Industrial Co., Ltd.
+#
+### BEGIN INIT INFO
+# Required-Start: 
+# Required-Stop:
+# Should-Start:
+# Should-Stop:
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
+# Short-Description: start/stop ssh daemon
+# Description: start and stop the OpenBSD "secure shell(tm)" daemon
+### END INIT INFO 
+# chkconfig: 2345 20 20
+
+# Init script information
+INIT_NAME=ssh
+DESC="OpenBSD Secure Shell server"
+
+# Individual Daemon information
+DAEMON1=/usr/sbin/sshd
+ARGS1=""
+BASENAME1=${DAEMON1##*/}
+FILE1=/etc/ssh/sshd_not_to_be_run
+DAEMON2=/usr/bin/ssh-keygen
+ARGS2=""
+CONF=/etc/ssh/ssh_host_key
+CONFR=/etc/ssh/ssh_host_rsa_key
+CONFD=/etc/ssh/ssh_host_dsa_key
+
+# Uncomment the following line to allow the script to autogenerate
+# the required keys if they are not on the system.
+#AUTOKEYGEN=yes
+
+# Load init script configuration
+[ -f /etc/default/$INIT_NAME ] && . /etc/default/$INIT_NAME
+
+# Source the init script functions
+. /etc/init.d/init-functions
+
+# Verify daemons are installed
+[ "$1" = "status" ] && NFOUND=4 || NFOUND=5
+test -f $DAEMON1 -a -f $DAEMON2 || exit $NFOUND
+( $DAEMON1 -\? 2>&1 | grep -q OpenSSH ) 2>/dev/null || exit $NFOUND
+test -e $FILE1 && exit 6
+
+check_privsep_dir() {
+	# Create the PrivSep empty dir if necessary
+	if [ ! -d /var/run/sshd ]; then
+		mkdir /var/run/sshd
+		chmod 0755 /var/run/sshd
+	fi
+}
+
+check_for_no_start() {
+	# forget it if we're trying to start, and /etc/ssh/sshd_not_to_be_run exists
+	if [ -e /etc/ssh/sshd_not_to_be_run ]; then 
+		echo "OpenBSD Secure Shell server not in use (/etc/ssh/sshd_not_to_be_run)"
+		exit 0
+	fi
+}
+
+# Each init script action is defined below...
+
+start() {
+	local RET ERROR=
+
+	check_for_no_start		
+	check_privsep_dir
+
+	if [ "$AUTOKEYGEN"="yes" ]
+	then
+		[ -s $CONF ] || $DAEMON2 -b 1024 -f $CONF -N "" -t rsa1
+		[ -s $CONFR ] || $DAEMON2 -d -f $CONFR -N "" -t rsa
+		[ -s $CONFD ] || $DAEMON2 -d -f $CONFD -N "" -t dsa
+	fi
+
+	log_status_msg "Starting $DESC: " -n
+	if [ ! -s $CONF ]; then
+		log_status_msg "failed - no ssh_host_key!"
+		return 6
+	fi
+	if [ ! -s $CONFR ]; then
+		log_status_msg "failed - no ssh_host_rsa_key!"
+		return 6
+	fi
+	if [ ! -s $CONFD ]; then
+		log_status_msg "failed - no ssh_host_dsa_key!"
+		return 6
+	fi
+	log_status_msg "$BASENAME1" -n
+	start_daemon $DAEMON1 $ARGS1
+	RET=$?
+	if [ $RET -eq 0 ]; then
+		log_success_msg ". "
+	else
+		log_failure_msg " failed ($RET: $ERROR)."
+		return 1
+	fi
+
+	return 0
+}
+
+stop () {
+	local RET ERROR=
+
+	log_status_msg "Stopping $DESC: " -n
+	log_status_msg "$BASENAME1" -n
+	killproc $BASENAME1
+	RET=$?
+	if [ $RET -eq 0 ]; then
+		log_success_msg ". "
+	else
+		log_failure_msg "failed ($RET: $ERROR). "
+		return 1
+	fi
+
+	return 0
+}
+
+restart() {
+	local RET
+
+	log_status_msg "Restarting $DESC..."
+	stop
+	start
+	RET=$?
+
+	return $RET
+}
+
+tryrestart() {
+	local RET
+
+	pidstatus $BASENAME1
+	RET=$?
+	if [ $RET -eq 0 ]; then
+		restart
+		RET=$?
+	else
+		RET=7
+	fi
+
+	return $RET
+}
+
+#
+# if the service does not support reload return code 3 should
+# be the result...
+#
+reload() {
+	local RET
+
+	log_status_msg "Reloading $DESC configuration..." -n
+	killproc $BASENAME1 -HUP
+	#
+	# repeat as necessary...
+	#
+	log_success_msg "done."
+
+	return 0
+}
+
+forcereload() {
+	local RET
+
+	reload
+	RET=$?
+	if [ $RET -ne 0 ]; then
+		restart
+		RET=$?
+	fi
+	
+	return $RET
+}
+
+status() {
+	local RET
+	
+	printstatus $BASENAME1
+	RET=$?
+
+	return $RET
+}
+
+#
+# Everything after this should be the same for all init scripts
+#
+# See the policy manual for information on actions and return codes.
+#
+
+parse() {
+	case "$1" in
+	start)
+			start
+			return $?
+	;;
+	stop)
+			stop
+			return $?
+			;;
+		restart)
+			restart
+			return $?
+			;;
+		try-restart)
+			tryrestart
+			return $?
+	;;
+	reload|force-reload)
+			reload
+			return $?
+	;;
+		status)
+			status
+			return $?
+	;;
+	*)
+			echo "Usage: $INIT_NAME " \
+			"{start|stop|restart|try-restart|reload|" \
+			"force-reload|status}" >&2
+			;;
+	esac
+	
+	return 1
+}
+
+parse $@
+

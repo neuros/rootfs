@@ -1,0 +1,30 @@
+# Based on http://www.linux-usb.org/usb.devices.txt
+
+c $CONSOLE              13   0  1  32 input/js%d
+c $CONSOLE              13  32  1  31 input/mouse%d
+c $CONSOLE              13  63  1   1 input/mice
+c $CONSOLE              13  64  1  64 input/event%d
+
+c $SERIAL              166   0  1  16 input/ttyACM%d
+
+c $PRINTER             180   0  1  16 usb/lp%d
+c $CONSOLE             180  32  1  16 usb/mdc800%d
+c $CONSOLE             180  48  1  16 usb/scanner%d
+c $CONSOLE             180  64  1   1 usb/rio500
+c $ROOT                180  65  1   1 usb/usblcd
+c $CONSOLE             180  66  1   1 usb/cpad0
+c $CONSOLE             180  80  1  16 usb/dc2xx%d
+c $CONSOLE             180  96  1  16 usb/hiddev%d
+c $CONSOLE             180 112  1  16 usb/auer%d
+c $CONSOLE             180 128  1   4 usb/brlvgr%d
+c $CONSOLE             180 144  1   4 usb/lcd
+c 660 root     root    180 240  1   4 usb/dabusb%d
+
+c $CONSOLE             188   0  1  16 usb/ttyUSB%d
+
+# Things that wouldn't get picked up by a "MAKEDEV usb"...
+a usb input/event
+a usb input/js
+a usb input/mouse
+a usb input/mice
+a usb input/ttyACM

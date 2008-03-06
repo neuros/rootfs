@@ -1,0 +1,29 @@
+/var/log/messages {
+    postrotate
+	/usr/bin/killall -HUP syslogd
+    endscript
+}
+
+/var/log/secure {
+    postrotate
+	/usr/bin/killall -HUP syslogd
+    endscript
+}
+
+/var/log/maillog {
+    postrotate
+	/usr/bin/killall -HUP syslogd
+    endscript
+}
+
+/var/log/spooler {
+    postrotate
+	/usr/bin/killall -HUP syslogd
+    endscript
+}
+
+/var/log/boot.log {
+    postrotate
+	/usr/bin/killall -HUP syslogd
+    endscript
+}

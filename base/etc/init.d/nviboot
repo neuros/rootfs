@@ -1,0 +1,84 @@
+#! /bin/sh
+#
+# Name: nviboot 
+# Date: 2003-06-23 18:30
+# Author: MontaVista Software, Inc. <source@mvista.com>
+# Copyright: Copyright 1999-2003 MontaVista Software, Inc.
+# License: 2003 (c) MontaVista Software, Inc. This file is licensed
+#          under the terms of the GNU General Public License version 2.
+#          This program is licensed "as is" without any warranty of any
+#          kind, whether express or implied.
+#
+# Copyright 2002, 2003, 2004 Sony Corporation
+# Copyright 2002, 2003, 2004 Matsushita Electric Industrial Co., Ltd.
+#
+### BEGIN INIT INFO
+# Required-Start: 
+# Required-Stop:
+# Should-Start:
+# Should-Stop:
+# Default-Start: S
+# Default-Stop: 0 1 2 3 4 5 6
+# Short-Description: recover nvi edit sessions
+# Description: Script to recover nvi edit sessions.
+### END INIT INFO 
+# chkconfig: S 70 0
+
+# Init script information
+INIT_NAME=
+DESC="Recovering nvi editor sessions..."
+
+# Individual Daemon information
+RECDIR=/var/tmp/vi.recover
+SENDMAIL=/usr/sbin/sendmail
+
+# Load init script configuration
+[ -f /etc/default/$INIT_NAME ] && . /etc/default/$INIT_NAME
+
+# Source the init script functions
+. /etc/init.d/init-functions
+
+log_status_msg "$DESC: " -n
+# Check editor backup files.
+vibackup=`echo $RECDIR/vi.*`
+if [ "$vibackup" != "$RECDIR/vi.*" ]; then
+    	for i in $vibackup; do
+            i=$RECDIR/${i#$RECDIR/}
+    		# Only test files that are readable.
+                [ ! -r $i ] && continue
+
+    		# Unmodified nvi editor backup files either have the
+    		# execute bit set or are zero length.  Delete them.
+                [ -x $i -o ! -s $i ] && rm $i
+    	done
+fi
+
+# It is possible to get incomplete recovery files, if the editor crashes
+# at the right time.
+virecovery=`echo $RECDIR/recover.*`
+if [ "$virecovery" != "$RECDIR/recover.*" ]; then
+    	for i in $virecovery; do
+            i=$RECDIR/${i#$RECDIR/}
+    		# Only test files that are readable.
+                [ ! -r $i ] && continue
+
+    		# Delete any recovery files that are zero length, corrupted,
+    		# or that have no corresponding backup file.  Else send mail
+    		# to the user.
+    		recfile=`awk '/^X-vi-recover-path:/{print $2}' < $i`
+                if [ -n "$recfile" -a -s "$recfile" ]; then
+			($SENDMAIL -t < $i &) </dev/null >/dev/null 2>&0
+    		else
+    			rm $i
+    		fi
+    	done
+fi
+
+log_status_msg "done."
+
+log_status_msg ""
+exit 0
+
+
+
+

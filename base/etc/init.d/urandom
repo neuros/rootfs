@@ -1,0 +1,146 @@
+#! /bin/sh
+#
+# Name: urandom 
+# Date: 2003-06-23 16:10
+# Author: MontaVista Software, Inc. <source@mvista.com>
+# Copyright: Copyright 1999-2003 MontaVista Software, Inc.
+# License: 2003 (c) MontaVista Software, Inc. This file is licensed
+#          under the terms of the GNU General Public License version 2.
+#          This program is licensed "as is" without any warranty of any
+#          kind, whether express or implied.
+#
+# Copyright 2002, 2003, 2004 Sony Corporation
+# Copyright 2002, 2003, 2004 Matsushita Electric Industrial Co., Ltd.
+#
+### BEGIN INIT INFO
+# Required-Start: 
+# Required-Stop:
+# Should-Start:
+# Should-Stop:
+# Default-Start: S
+# Default-Stop: 0 1 2 3 4 5 6
+# Short-Description: save the random seed between reboots 
+# Description: This script saves the random seed between reboots.
+#              It is called from the boot, halt and reboot scripts.
+### END INIT INFO 
+# chkconfig: S 55 30
+
+# Init script information
+INIT_NAME=rcS
+DESC1="Initializing random number generator..."
+DESC2="Saving random seed..."
+
+# Individual Daemon information
+DAEMON1=/bin/dd
+BASENAME1=${DAEMON1##*/}
+FILE1=/dev/urandom
+FILE2=/var/run/random-seed
+ARGS1="if=$FILE1 of=$FILE2 count=1"
+
+# Load init script configuration
+[ -f /etc/default/$INIT_NAME ] && . /etc/default/$INIT_NAME
+
+# Source the init script functions
+. /etc/init.d/init-functions
+
+# Verify daemons are installed
+NFOUND=5
+test -f $DAEMON1 || exit $NFOUND
+test -c $FILE1 || exit $NFOUND
+
+# Each init script action is defined below...
+
+start() {
+	local RET ERROR=
+
+	log_status_msg "$DESC: " -n
+	# Load and then save 512 bytes,
+		# which is the size of the entropy pool
+	[ -f $FILE2 ] && cat $FILE2 > $FILE1
+	rm -f $FILE2
+		umask 077
+	$DAEMON1 $ARGS1 >/dev/null 2>&1
+	RET=$?
+	if [ $RET -eq 0 ]; then
+		log_success_msg "done. "
+		umask 022
+	else
+		log_failure_msg " failed ($RET: $ERROR)."
+		return 1
+	fi
+	
+	log_status_msg ""
+	return 0
+}
+
+stop () {
+	local RET ERROR=
+
+		# Carry a random seed from shut-down to start-up;
+		# see documentation in linux/drivers/char/random.c
+	log_status_msg "$DESC: " -n
+		umask 077
+	$BASENAME1 $ARGS1 >/dev/null 2>&1
+	RET=$?
+	if [ $RET -eq 0 ]; then
+		log_success_msg "done. "
+	else
+		log_failure_msg "failed ($RET: $ERROR). " -n
+		return 1
+	fi
+
+	log_status_msg ""
+	return 0
+}
+
+restart() {
+	local RET
+
+	log_status_msg "Restarting $DESC..."
+	stop
+	start
+	RET=$?
+
+	return $RET
+}
+
+status() {
+	local RET
+	
+	printstatus $BASENAME1
+	RET=$?
+
+	return $RET
+}
+
+#
+# Everything after this should be the same for all init scripts
+#
+# See the policy manual for information on actions and return codes.
+#
+
+parse() {
+	case "$1" in
+		start)
+			start
+			return $?
+			;;
+		stop)
+			stop
+			return $?
+			;;
+		restart)
+			restart
+			return $?
+		;;
+	*)
+			echo "Usage: $INIT_NAME " \
+			"{start|stop|restart}" >&2
+		;;
+	esac
+	
+	return 1
+}
+
+parse $@
+

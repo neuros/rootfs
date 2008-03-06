@@ -1,0 +1,55 @@
+#!/bin/sh
+#
+# chkconfig: 2345 20 20
+#
+
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+DAEMON=/usr/sbin/dnrd
+NAME=dnrd
+DESC="Domain Name Relay Daemon"
+
+test -f $DAEMON || exit 0
+
+# The default is not to run without a connection to the Internet. If you don't
+# have other requirements, just comment the 'echo' line below.
+echo "The $DESC is not yet configured. Please edit the file /etc/init.d/dnrd."
+# If you want to run dnrd via the initscripts, instead of the 
+# pcmcia or ppp scripts, comment the following line.
+exit 0
+
+# To manually set arguments edit and uncomment the following line:
+# ARGS="--server=127.0.0.1"
+#
+# See the dnrd(8) man page for more information
+#
+
+set -e
+
+case "$1" in
+  start)
+	echo -n "Starting $DESC: "
+	start-stop-daemon --start --quiet --pidfile /var/run/$NAME.pid \
+		--exec $DAEMON -- $ARGS
+	echo "$NAME."
+	;;
+  stop)
+	echo -n "Stopping $DESC: "
+	$DAEMON -k 2&>/dev/null
+	echo "$NAME."
+	;;
+  restart|force-reload)
+	echo -n "Restarting $DESC: "
+	$DAEMON -k 2&>/dev/null
+	sleep 1
+	start-stop-daemon --start --quiet --pidfile \
+		/var/run/$NAME.pid --exec $DAEMON -- $ARGS
+	echo "$NAME."
+	;;
+  *)
+	N=/etc/init.d/$NAME
+	echo "Usage: $N {start|stop|restart|force-reload}" >&2
+	exit 1
+	;;
+esac
+
+exit 0

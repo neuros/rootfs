@@ -1,0 +1,33 @@
+#!/bin/sh
+
+# Exit if package was removed but not purged.
+test -x /usr/sbin/dnrd || exit 0
+
+if [ -n "$PPP_IFACE" ]; then
+	DEVICE="$PPP_IFACE"
+
+	# Comment the following lines if you does no want to use automatically
+	# assigned DNS servers.
+	# Note: You have to run the ppp/ippp daemon with the option
+	# "ms-get-dns" in order to use this feature.
+	# Since version 2.3.7 of ppp daemon, option "usepeername"
+	# set environment variables $DNS1 and $DNS2
+	dns_list="$DNS1 $DNS2 $MS_DNS1 $MS_DNS2"
+else
+	dns_list="$DNSSRVS $DNS_1 $DNS_2 $DNS_3"
+fi
+
+case "$DEVICE" in
+	ippp0) #dnrd -s 123.45.67.89 ;;
+
+	*)
+		DNS=
+		for ns in "$dns_list" ; do
+			DNS="$DNS -s $ns"
+		done
+
+		if [ -n "$DNS" ]; then
+			/usr/sbin/dnrd $DNS
+		fi
+		;;
+esac

@@ -1,0 +1,237 @@
+#! /bin/sh
+#
+# Name: racoon 
+# Date: 2005-05-11 12:00
+# Author: MontaVista Software, Inc. <source@mvista.com>
+# Copyright: Copyright 1999-2005 MontaVista Software, Inc.
+# License: 2003 (c) MontaVista Software, Inc. This file is licensed
+#          under the terms of the GNU General Public License version 2.
+#          This program is licensed "as is" without any warranty of any
+#          kind, whether express or implied.
+#
+# Copyright 2002, 2003, 2004 Sony Corporation
+# Copyright 2002, 2003, 2004 Matsushita Electric Industrial Co., Ltd.
+#
+### BEGIN INIT INFO
+# Required-Start: 
+# Required-Stop:
+# Should-Start:
+# Should-Stop:
+# Default-Start: 
+# Default-Stop: 
+# Short-Description: start/stop the Racoon IKE daemon 
+# Description: start/stop the Racoon IKE daemon 
+### END INIT INFO 
+# chkconfig: 2345 73 07 
+
+# Init script information
+INIT_NAME="/etc/ipsec-tools/ipsec-tools.conf"
+DESC="IPsec IKE daemon"
+
+# Individual Daemon information
+DAEMON="/usr/sbin/racoon"
+DAEMON_CONF="/etc/ipsec-tools/racoon.conf"
+ARGS="-f $DAEMON_CONF"
+BASENAME=${DAEMON##*/}
+
+# Additional Tooling information
+SETKEY="/usr/sbin/setkey"
+SETKEY_CONF="/etc/ipsec-tools/setkey.conf"
+SETKEY_DESC="IPsec Policies"
+
+# Load init script configuration
+[ -f $INIT_NAME ] && . $INIT_NAME || exit 6 
+
+# Source the init script functions
+. /etc/init.d/init-functions
+
+# Verify daemons are installed
+[ "$1" = "status" ] && NFOUND=4 || NFOUND=5
+test -f $DAEMON -a -f $SETKEY || exit $NFOUND
+
+start() {
+	local RET
+
+        ## If there is no daemon config file, skip starting
+        if ! [ -f $RACOON_CONF ]; then
+		RET=6
+		log_failure_msg "no file $DAEMON_CONF found (return code $RET)"
+		ret=$RET
+        fi
+
+	# Setting up kernel SPD Policies is not required to start the daemon.
+        if [ -f $SETKEY_CONF ]; then
+                log_status_msg "Setting up $SETKEY_DESC: " -n
+                $SETKEY $SETKEY_OPTIONS -f $SETKEY_CONF &>/dev/null
+		RET=$?
+		if [ $RET -eq 0 ]; then
+	                log_success_msg "done."
+       		else
+			RET=7
+                	log_failure_msg "failed (return code $RET)."
+			return $RET
+        	fi
+        fi
+
+	log_status_msg "Starting $DESC: " -n
+
+	start_daemon $DAEMON $ARGS &>/dev/null
+	RET=$?
+
+	# Additional Checking of pidofproc $BASENAME makes sure that the return
+	# code is error if there are parse errors while reading $DAEMON_CONF
+	# Works only for single instance Daemon (which racoon is)
+	if [ $RET -eq 0 ] && pidofproc $BASENAME &>/dev/null; then
+		log_success_msg "done."
+	else
+		RET=7
+		log_failure_msg "failed (return code $RET)."
+	fi
+	
+	return $RET 
+}
+
+stop () {
+	local RET
+
+	log_status_msg "Stopping $DESC: " -n
+
+	killproc $BASENAME
+	RET=$?
+
+	if [ $RET -eq 0 ]; then
+		log_success_msg "done."
+	else
+		log_failure_msg "failed (return code $RET). "
+	fi
+
+	# Flush kernel SPD Policies if required
+        if [ -n "$SETKEY_FLUSH_OPTIONS" ]; then
+                log_status_msg "Flushing $SETKEY_DESC: " -n
+                $SETKEY $SETKEY_FLUSH_OPTIONS
+		RET=$?
+		if [ $RET -eq 0 ]; then
+                	log_success_msg "done."
+        	else
+               	 	log_failure_msg "failed (return code $RET). "
+        	fi
+        fi
+
+	return $RET 
+}
+
+restart() {
+	local RET
+
+	log_status_msg "Restarting $DESC: "
+	stop
+	start
+	RET=$?
+
+	if [ $RET -eq 0 ]; then
+        	log_success_msg "done."
+        else
+                log_failure_msg "failed (return code $RET). "
+        fi
+
+	return $RET
+}
+
+tryrestart() {
+	local RET
+
+	pidstatus $BASENAME
+	RET=$?
+	if [ $RET -eq 0 ]; then
+		restart
+		RET=$?
+	else
+		RET=7
+	fi
+
+	return $RET
+}
+
+
+reload() {
+	local RET
+
+	log_status_msg "Reloading $DESC configuration: " -n
+
+	killproc $BASENAME -HUP
+	RET=$?
+
+        if [ $RET -eq 0 ]; then
+                log_success_msg "done."
+        else
+                log_failure_msg "failed (return code $RET). "
+        fi
+
+	return $RET
+}
+
+forcereload() {
+	local RET
+
+	reload
+	RET=$?
+
+	if [ $RET -ne 0 ]; then
+		restart
+		RET=$?
+	fi
+
+	return $RET
+}
+
+status() {
+	local RET
+
+	printstatus $BASENAME
+	RET=$?
+
+	return $RET
+}
+
+parse() {
+	case "$1" in
+ 		start)
+			start
+			return $?
+			;;
+  		stop)
+			stop
+			return $?
+			;;
+		restart)
+			restart
+			return $?
+			;;
+		try-restart)
+			tryrestart
+			return $?
+			;;
+		reload)
+			reload
+			return $?
+			;;
+		force-reload)
+			forcereload
+			return $?
+			;;
+		status)
+			status
+			return $?
+			;;
+  		*)
+			echo "Usage: $INIT_NAME " \
+			"{start|stop|restart|try-restart|reload|" \
+			"force-reload|status}" >&2
+			;;
+	esac
+	
+	return 1
+}
+
+parse $@
+

@@ -1,0 +1,54 @@
+#!/bin/sh -e
+#
+#
+# chkconfig: S 44 0
+#
+PATH=/bin:/usr/bin:/sbin:/usr/sbin
+# ugidd		Startup script for the ugidd server.
+#
+#		Modified for ugidd
+#		by Herbert Xu <herbert@debian.org>
+#		Written by Miquel van Smoorenburg <miquels@cistron.nl>.
+#		Modified for Debian GNU/Linux
+#		by Ian Murdock <imurdock@gnu.ai.mit.edu>.
+#
+# Version:	$Id: ugidd.init,v 1.4 1999/11/17 01:30:22 herbert Exp $
+
+DESC="UID mapping server"
+
+test -x /sbin/rpc.ugidd || exit 0
+
+start_stop() {
+	case "$1" in
+	start)
+		# We need this as ugidd is started before the usual
+		# starting time of portmap.
+		/etc/init.d/portmap start
+		printf "Starting $DESC:"
+		start-stop-daemon --start --quiet \
+				  --exec /sbin/rpc.ugidd
+		printf " ugidd"
+		printf ".\n"
+		;;
+	stop)
+		printf "Stopping $DESC:"
+		start-stop-daemon --stop --oknodo --quiet \
+				  --exec /sbin/rpc.ugidd
+		printf " ugidd"
+		printf ".\n"
+		;;
+	restart | force-reload)
+		start_stop stop
+		sleep 1
+		start_stop start
+		;;
+	*)
+		printf "Usage: $0 {start|stop|restart|force-reload}\n" >&2
+		exit 1
+		;;
+	esac
+}
+
+start_stop "$@"
+
+exit 0

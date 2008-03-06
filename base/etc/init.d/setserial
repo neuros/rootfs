@@ -1,0 +1,201 @@
+#! /bin/sh
+#
+# Name: setserial 
+# Date: 2003-06-28
+# Author: MontaVista Software, Inc. <source@mvista.com>
+# Copyright: Copyright 1999-2003 MontaVista Software, Inc.
+# License: 2003 (c) MontaVista Software, Inc. This file is licensed
+#          under the terms of the GNU General Public License version 2.
+#          This program is licensed "as is" without any warranty of any
+#          kind, whether express or implied.
+# 
+# Copyright 2002, 2003, 2004 Sony Corporation
+# Copyright 2002, 2003, 2004 Matsushita Electric Industrial Co., Ltd.
+#
+### BEGIN INIT INFO
+# Required-Start: 
+# Required-Stop:
+# Should-Start:
+# Should-Stop:
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
+# Short-Description: Initializes the serial ports on your system
+# Description: Initializes the serial ports on your system
+### END INIT INFO 
+# chkconfig: 2345 50 75
+
+# Init script information
+INIT_NAME=setserial
+DESC=""
+
+# Individual Daemon information
+DAEMON1=/bin/setserial
+ARGS1=""
+BASENAME1=${DAEMON1##*/}
+DAEMON2=/sbin/insmod
+DAEMON3=/sbin/rmmod
+CUT=/usr/bin/cut
+DRIVER=serial
+CONF=/etc/serial.conf
+
+RCLOCKFILE=/var/lock/subsys/serial
+DIRS="/lib/modules/`uname -r`/misc /lib/modules /usr/lib/modules ."
+MODULE_REGEXP="serial\b"
+
+ALLDEVS="/dev/ttyS?"
+
+# Load init script configuration
+[ -f /etc/default/$INIT_NAME ] && . /etc/default/$INIT_NAME
+
+# Source the init script functions
+. /etc/init.d/init-functions
+
+# Verify daemons are installed
+[ "$1" = "status" ] && NFOUND=4 || NFOUND=5
+test -f $DAEMON1 -a -f $DAEMON2 -a -f $DAEMON3 -a -f $CUT || exit $NFOUND
+
+# Each init script action is defined below...
+
+if [ `/bin/ls /dev/ttyS?? > /dev/null` ] ; then
+        ALLDEVS="$ALLDEVS /dev/ttyS??"
+fi
+
+if test -f /proc/devices; then
+        [ `grep -q " ttyS$" /proc/devices` ] && LOADED="yes" || LOADED="no"
+else
+        LOADED=""
+fi
+
+for i in $DIRS
+do
+        if test -z "$MODULE" -a -f $i/$DRIVER.o ; then
+                MODULE=$i/$DRIVER.o
+	fi
+done
+
+if ! test -f /proc/modules ; then
+        MODULE=""
+fi
+
+
+start() {
+	local RET ERROR=
+
+	if [ -n $MODULE -a "$LOADED" != "yes" ]; then
+		log_status_msg "Loading module: " -n
+		log_status_msg "$DRIVER" -n
+        	if $DAEMON2 -fm $MODULE $DRIVER_ARG \
+                > /tmp/$DRIVER.map 2> /tmp/$DRIVER.$$; then 
+			log_status_msg " done."
+        	else
+			log_failure_msg " failed ($RET: $ERROR)."
+			return 1
+        	fi
+       		/bin/rm -f /tmp/$DRIVER.$$
+	fi
+
+	if test -f $CONF ; then
+               	grep -v ^# < $CONF | while read device args
+        do
+               		${DAEMON1} -z $device $args
+               	done
+  else
+        	echo "###AUTOSAVE###" > $CONF
+  fi
+
+	touch ${RCLOCKFILE}
+	log_status_msg "Setting serial device: " -n
+	log_status_msg "$BASENAME1" -n
+	${DAEMON1} -bg ${ALLDEVS}
+	RET=$?
+	if [ $RET -eq 0 ]; then
+		log_success_msg "."
+	else
+		log_failure_msg " failed ($RET: $ERROR)."
+		return 1
+	fi
+
+	return 0
+}
+
+stop () {
+	local RET ERROR=
+
+        if test "$LOADED" != "no" -a \
+           `head -1 $CONF`X = "###AUTOSAVE###X" ; then
+                log_status_msg "Saving state of serial devices... " -n
+                grep "^#" $CONF > /etc/.serial.conf.new
+                ${DAEMON1} -G -g ${ALLDEVS} >> /etc/.serial.conf.new
+		RET=$?
+		if [ $RET -eq 0 ]; then
+                        log_success_msg "done."
+  else
+                        log_failure_msg " failed ($RET: $ERROR)."
+                        return 1
+  fi
+                mv $CONF /etc/.serial.conf.old
+                mv /etc/.serial.conf.new $CONF
+        fi
+        if test -n $MODULE ; then
+                module=`grep $MODULE_REGEXP /proc/modules | $CUT -f1 -d' '`
+                [ -z "$module" ] && rm -f ${RCLOCKFILE} ; return 0
+                log_status_msg "Unloading module :" -n
+                log_status_msg "$DRIVER" -n
+                $DAEMON3 $module
+                RET=$?
+                if [ $RET -eq 0 ]; then
+                        log_success_msg "done."
+  else
+                        log_failure_msg " failed ($RET: $ERROR)."
+                        return 1
+  fi
+
+        fi
+        rm -f ${RCLOCKFILE}
+
+	return 0
+}
+
+restart() {
+	local RET
+
+	log_status_msg "Restarting $DESC..."
+	stop
+	start
+	RET=$?
+
+	return $RET
+}
+
+#
+# Everything after this should be the same for all init scripts
+#
+# See the policy manual for information on actions and return codes.
+#
+
+parse() {
+	case "$1" in
+		start|status)
+			start
+			return $?
+			;;
+		stop)
+			stop
+			return $?
+			;;
+		restart|try-restart|reload|force-reload)
+			restart
+			return $?
+			;;
+		*)
+			echo "Usage: $INIT_NAME " \
+			"{start|stop|restart|try-restart|reload|" \
+			"force-reload|status}" >&2
+			;;
+	esac
+	
+	return 1
+}
+
+parse $@
+

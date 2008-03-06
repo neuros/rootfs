@@ -1,0 +1,33 @@
+#! /bin/sh
+#
+# Name: rmnologin 
+# Date: 2003-06-20 15:17
+# Author: MontaVista Software, Inc. <source@mvista.com>
+# Copyright: Copyright 1999-2003 MontaVista Software, Inc.
+# License: 2003 (c) MontaVista Software, Inc. This file is licensed
+#          under the terms of the GNU General Public License version 2.
+#          This program is licensed "as is" without any warranty of any
+#          kind, whether express or implied.
+#
+# Copyright 2002, 2003, 2004 Sony Corporation
+# Copyright 2002, 2003, 2004 Matsushita Electric Industrial Co., Ltd.
+#
+### BEGIN INIT INFO
+# Required-Start: 
+# Required-Stop:
+# Should-Start:
+# Should-Stop:
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
+# Short-Description: remove /etc/nologin file
+# Description: This script removes the /etc/nologin file as the last
+#              step in the boot process.
+### END INIT INFO 
+# chkconfig: 2345 99 0
+
+if [ -f /etc/nologin.boot ]
+then
+	rm -f /etc/nologin /etc/nologin.boot
+fi
+
+

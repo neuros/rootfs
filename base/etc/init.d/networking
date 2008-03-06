@@ -1,0 +1,235 @@
+#! /bin/sh
+#
+# Name: networking 
+# Date: 2003-06-23 16:40
+# Author: MontaVista Software, Inc. <source@mvista.com>
+# Copyright: Copyright 1999-2003 MontaVista Software, Inc.
+# License: 2003 (c) MontaVista Software, Inc. This file is licensed
+#          under the terms of the GNU General Public License version 2.
+#          This program is licensed "as is" without any warranty of any
+#          kind, whether express or implied.
+#
+# Copyright 2002, 2003, 2004 Sony Corporation
+# Copyright 2002, 2003, 2004 Matsushita Electric Industrial Co., Ltd.
+#
+### BEGIN INIT INFO
+# Required-Start: 
+# Required-Stop:
+# Should-Start:
+# Should-Stop:
+# Default-Start: S
+# Default-Stop: 0 1 2 3 4 5 6
+# Short-Description: start/stop networking daemons
+# Description: start/stop networking daemons
+### END INIT INFO 
+# chkconfig: S 40 0
+
+# Init script information
+INIT_NAME=spoof-protect
+DESC="network interfaces"
+
+# Individual Daemon information
+DAEMON1=/sbin/ifup
+ARGS1="-a"
+BASENAME1=${DAEMON1##*/}
+DAEMON2=/sbin/ifdown
+BASENAME2=${DAEMON2##*/}
+
+# Load init script configuration
+[ -f /etc/network/$INIT_NAME ] && . /etc/network/$INIT_NAME
+
+# Source the init script functions
+. /etc/init.d/init-functions
+
+# Verify daemons are installed
+NFOUND=5
+test -f $DAEMON1 || exit $NFOUND
+test -f $DAEMON2 || exit $NFOUND
+test -f /bin/grep -a -f /usr/bin/cut || exit $NFOUND
+
+spoofprotect_rp_filter () {
+    # This is the best method: turn on Source Address Verification and get
+    # spoof protection on all current and future interfaces.
+    
+    if [ -e /proc/sys/net/ipv4/conf/all/rp_filter ]; then
+        for f in /proc/sys/net/ipv4/conf/*/rp_filter; do
+            echo 1 > $f
+        done
+        return 0
+    else
+        return 1
+    fi
+}
+
+spoofprotect () {
+    log_status_msg "Setting up IP spoofing protection: " -n
+    if spoofprotect_rp_filter; then
+        log_status_msg "rp_filter."
+    else
+        log_status_msg "FAILED"
+    fi
+}
+
+ip_forward () {
+    if [ -e /proc/sys/net/ipv4/ip_forward ]; then
+        log_status_msg -n "Enabling packet forwarding: " -n
+        echo 1 > /proc/sys/net/ipv4/ip_forward
+        log_status_msg "done."
+    fi
+}
+
+syncookies () {
+    if [ -e /proc/sys/net/ipv4/tcp_syncookies ]; then
+        log_status_msg "Enabling TCP/IP SYN cookies: " -n
+        echo 1 > /proc/sys/net/ipv4/tcp_syncookies
+        log_status_msg "done."
+    fi
+}
+
+disable_tcp_ecn () {
+    if [ -e /proc/sys/net/ipv4/tcp_ecn ]; then
+        log_status_msg "Disable TCP/IP Explicit Congestion Notification: " -n
+        echo 0 > /proc/sys/net/ipv4/tcp_ecn
+        log_status_msg "done."
+    fi
+}
+
+doopt () {
+    optname=$1
+    default=$2
+    opt=`grep "^$optname=" /etc/network/options`
+    if [ -z "$opt" ]; then
+        opt="$optname=$default"
+    fi
+    optval=${opt#$optname=}
+    if [ "$optval" = "yes" ]; then
+        eval $optname
+    fi
+}
+
+# Each init script action is defined below...
+
+start() {
+	local RET ERROR=
+	
+	doopt spoofprotect yes
+        doopt syncookies no
+        doopt ip_forward no
+	doopt disable_tcp_ecn yes
+
+	log_status_msg "Starting $DESC: " -n
+	$DAEMON1 $ARGS1
+	RET=$?
+	if [ $RET -eq 0 ]; then
+		log_success_msg "done."
+        else
+		log_failure_msg " failed ($RET: $ERROR)."
+		return 1
+	fi
+	
+	log_status_msg ""
+	return 0
+}
+
+stop () {
+	local RET ERROR=
+        fs_mount=`cut -f2,3 -d' ' /proc/mounts`
+        if echo "$fs_mount" |
+		grep -q "^/ nfs$"
+        then
+            	log_status_msg "NOT deconfiguring $DESC: / is an NFS mount"
+		return 1
+        elif echo "$fs_mount" |
+          	grep -q "^/ smbfs$"
+        then
+            	echo "NOT deconfiguring $DESC: / is an SMB mount"
+		return 1
+        elif echo "$fs_mount" | cut -f2 -d' ' |
+          	grep -qE '^(nfs|smbfs)$'
+        then
+            	echo "NOT deconfiguring $DESC: NFS/SMB shares still mounted."
+		return 1
+        else
+	     	log_status_msg "Stopping $DESC: " -n
+            	$DAEMON2 $ARGS1
+		RET=$?
+		if [ $RET -eq 0 ]; then
+	             	log_status_msg "done."
+		else
+			log_failure_msg "failed ($RET: $ERROR). " -n
+			return 1
+		fi
+        fi
+
+	log_status_msg ""
+	return 0
+}
+
+restart() {
+	local RET
+
+	log_status_msg "Restarting $DESC..." -n
+        $DAEMON2 $ARGS1
+        $DAEMON1 $ARGS1
+	RET=$?
+        log_status_msg "done."
+	return $RET
+}
+
+#
+# if the service does not support reload return code 3 should
+# be the result...
+#
+reload() {
+	local RET
+
+	log_status_msg "Reloading $DESC configuration..." -n
+	# killproc $BASENAME1 -HUP
+	#
+	# repeat as necessary...
+	#
+	log_success_msg "done."
+
+	return 0
+}
+
+#
+# Everything after this should be the same for all init scripts
+#
+# See the policy manual for information on actions and return codes.
+#
+
+parse() {
+	case "$1" in
+		start)
+			start
+			return $?
+			;;
+		stop)
+			stop
+			return $?
+			;;
+		restart | force-reload)
+			restart
+			return $?
+			;;
+		try-restart)
+			restart
+			return $?
+			;;
+		reload)
+			reload
+			return $?
+	;;
+    *)
+			echo "Usage: $INIT_NAME " \
+			"{start|stop|restart|try-restart|reload|" \
+			"force-reload}" >&2
+	;;
+	esac
+	
+	return 1
+}
+
+parse $@
+

@@ -1,0 +1,12 @@
+# These aliases are used by /etc/hotplug/isapnp.rc and are needed here
+# because the modules themselves are not providing them.
+alias pnp:dPNP0400 parport_pc
+alias pnp:dPNP0401 parport_pc
+alias pnp:dPNP0510 irtty-sir
+alias pnp:dPNP0511 irtty-sir
+alias pnp:dPNP0700 floppy
+alias pnp:dPNP0800 pcspkr
+alias pnp:dPNP0b00 rtc
+alias pnp:dPNP0303 atkbd
+alias pnp:dPNP0f13 psmouse
+alias pnp:dPNPb02f analog

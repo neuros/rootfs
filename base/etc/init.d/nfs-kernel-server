@@ -1,0 +1,245 @@
+#! /bin/sh
+#
+# Name: nfs-kernel-server 
+# Date: 2003-06-27 18:00
+# Author: MontaVista Software, Inc. <source@mvista.com>
+# Copyright: Copyright 1999-2003 MontaVista Software, Inc.
+# License: 2003 (c) MontaVista Software, Inc. This file is licensed
+#          under the terms of the GNU General Public License version 2.
+#          This program is licensed "as is" without any warranty of any
+#          kind, whether express or implied.
+#
+# Copyright 2002, 2003, 2004 Sony Corporation
+# Copyright 2002, 2003, 2004 Matsushita Electric Industrial Co., Ltd.
+#
+### BEGIN INIT INFO
+# Required-Start: 
+# Required-Stop:
+# Should-Start:
+# Should-Stop:
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
+# Short-Description: start/stop kernel-mode NFS server.
+# Description: This shell script takes care of starting and stopping
+#              the kernel-mode NFS server.
+### END INIT INFO 
+# chkconfig: 2345 20 80
+
+# Init script information
+INIT_NAME=rpc
+DESC="NFS kernel daemon"
+
+# Individual Daemon information
+DAEMON1=/usr/sbin/rpc.nfsd
+DAEMON2=/usr/sbin/rpc.mountd
+DAEMON3=/usr/sbin/exportfs
+DAEMON4=/usr/bin/rpcinfo
+ARGS1=""
+ARGS2="-au"
+ARGS3="-r"
+ARGS4="-u localhost nfs 3"
+BASENAME1=${DAEMON1##*/}
+BASENAME2=${DAEMON2##*/}
+BASENAME3=${DAEMON3##*/}
+
+RPCNFSDCOUNT=8  # Number of servers to be started up by default
+RPCMOUNTDOPTS=
+
+# Load init script configuration
+[ -f /etc/default/$INIT_NAME ] && . /etc/default/$INIT_NAME
+
+# Source the init script functions
+. /etc/init.d/init-functions
+
+# Verify daemons are installed
+[ "$1" = "status" ] && NFOUND=4 || NFOUND=5
+test -f $DAEMON1 -a -f $DAEMON2 -a -f $DAEMON3 -a -f $DAEMON4 || exit $NFOUND
+
+# Each init script action is defined below...
+
+start() {
+	local RET ERROR=
+	
+        if grep -q '^/' /etc/exports; then
+                log_status_msg "Exporting directories for $DESC..." -n
+                $DAEMON3 $ARGS3
+		RET=$?
+	        if [ $RET -eq 0 ]; then
+        	        log_success_msg "done. "
+        	else
+                	log_failure_msg " failed ($RET: $ERROR)."
+                	return 1
+		fi
+
+                log_status_msg "Starting $DESC:" -n
+                log_status_msg "$BASENAME1" -n
+		start_daemon $DAEMON1 $RPCNFSDCOUNT
+		RET=$?
+                if [ $RET -eq 0 ]; then
+                        log_success_msg ". "
+                else
+                        log_failure_msg " failed ($RET: $ERROR)."
+                        return 1
+                fi
+                log_status_msg "$BASENAME2" -n
+                $DAEMON4 $ARGS4 > /dev/null 2>&1 ||
+		    RPCMOUNTDOPTS="$RPCMOUNTDOPTS --no-nfs-version 3"
+                start_daemon $DAEMON2 $RPCMOUNTDOPTS
+		RET=$?
+                if [ $RET -eq 0 ]; then
+                        log_success_msg "done."
+	else
+                        log_failure_msg " failed ($RET: $ERROR)."
+                        return 1
+                fi
+        else
+                log_status_msg "Not starting $DESC: No exports."
+	fi
+
+	log_status_msg ""
+	return 0
+}
+
+stop () {
+	local RET ERROR=
+
+	printf "Unexporting directories for $DESC..."
+        $DAEMON3 -au
+	echo "done."
+
+	log_status_msg "Stopping $DESC: " -n
+	log_status_msg "$BASENAME2" -n
+	killproc $BASENAME2
+	RET=$?
+	if [ $RET -eq 0 ]; then
+		log_success_msg " " -n
+	else
+		log_failure_msg "failed ($RET: $ERROR). " -n
+		return 1
+	fi
+	log_status_msg "$BASENAME1" -n
+	killproc $BASENAME1 -2
+	RET=$?
+        if [ $RET -eq 0 ]; then
+                log_success_msg "done."
+        else
+                log_failure_msg "failed ($RET: $ERROR). " -n
+                return 1
+        fi
+	log_status_msg "Unexporting directories for $DESC..."
+        $DAEMON3 $ARGS2
+        RET=$?
+        if [ $RET -eq 0 ]; then
+                log_success_msg "done."
+        else
+                log_failure_msg "failed ($RET: $ERROR). " -n
+                return 1
+        fi
+
+	log_status_msg ""
+	return 0
+}
+
+restart() {
+	local RET
+
+	log_status_msg "Restarting $DESC..."
+	stop
+	sleep 1
+	start
+	RET=$?
+
+	return $RET
+}
+
+tryrestart() {
+	local RET
+
+	pidstatus $BASENAME1
+	RET=$?
+	if [ $RET -eq 0 ]; then
+		restart
+		RET=$?
+	else
+		RET=7
+	fi
+
+	return $RET
+}
+
+#
+# if the service does not support reload return code 3 should
+# be the result...
+#
+reload() {
+	local RET
+
+	log_status_msg "Re-exporting directories for $DESC..." -n
+
+        $DAEMON3 $ARGS3
+        RET=$?
+        if [ $RET -eq 0 ]; then
+                log_success_msg "done."
+        else
+                log_failure_msg "failed ($RET: $ERROR). " -n
+                return 1
+        fi
+	log_success_msg "done."
+
+	return 0
+}
+
+status() {
+	local RET
+	
+	printstatus $BASENAME1
+	printstatus $BASENAME2
+	RET=$?
+
+	return $RET
+}
+
+#
+# Everything after this should be the same for all init scripts
+#
+# See the policy manual for information on actions and return codes.
+#
+
+parse() {
+	case "$1" in
+		start)
+			start
+			return $?
+			;;
+		stop)
+			stop
+			return $?
+			;;
+		restart)
+			restart
+			return $?
+			;;
+		try-restart)
+			tryrestart
+			return $?
+			;;
+		reload|force-reload)
+			reload
+			return $?
+			;;
+		status)
+			status
+			return $?
+			;;
+  *)
+			echo "Usage: $INIT_NAME " \
+			"{start|stop|restart|try-restart|reload|" \
+			"force-reload|status}" >&2
+	;;
+	esac
+	
+	return 1
+}
+
+parse $@
+

@@ -1,0 +1,246 @@
+#! /bin/sh
+#
+# Name: pcmcia 
+# Date: 2003-06-28 15:00
+# Author: MontaVista Software, Inc. <source@mvista.com>
+# Copyright: Copyright 1999-2005 MontaVista Software, Inc.
+# License: 2003-2005 (c) MontaVista Software, Inc. This file is licensed
+#          under the terms of the GNU General Public License version 2.
+#          This program is licensed "as is" without any warranty of any
+#          kind, whether express or implied.
+#
+# Copyright 2002, 2003, 2004 Sony Corporation
+# Copyright 2002, 2003, 2004 Matsushita Electric Industrial Co., Ltd.
+#
+### BEGIN INIT INFO
+# Required-Start: 
+# Required-Stop:
+# Should-Start:
+# Should-Stop:
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
+# Short-Description: 
+# Description:
+### END INIT INFO 
+# chkconfig: 2345 45 96
+
+# processname: cardmgr
+# pidfile: /var/run/cardmgr.pid
+# config: /etc/pcmcia/config.opts
+# config: /lib/modules/`uname -r`/pcmcia-config/board.opts
+# config: /lib/modules/`uname -r`/pcmcia-config/pcmcia.conf
+# description: PCMCIA support is usually to support things like ethernet \
+#              and modems in laptops.  It won't get started unless \
+#              configured so it is safe to have it installed on machines \
+#              that don't need it.
+
+VER=`uname -r`
+CONFDIR=/etc/pcmcia
+
+# Init script information
+INIT_NAME=/lib/modules/$VER/pcmcia-conf/pcmcia.conf
+DESC="PCMCIA services"
+
+# Individual Daemon information
+DAEMON1=/sbin/cardmgr
+ARGS1=
+BASENAME1=${DAEMON1##*/}
+PC=/lib/modules/$VER/pcmcia
+KD=/lib/modules/$VER/kernel/drivers/pcmcia
+SC=/var/lib/pcmcia/scheme
+STAB=/var/run/stab
+PIDFILE=/var/lock/subsys/pcmcia
+DAEMON2=/sbin/modprobe
+DAEMON3=/sbin/insmod
+DAEMON4=/sbin/rmmod
+
+# Load init script configuration
+[ -f $INIT_NAME ] && . $INIT_NAME || exit 6
+
+# Source the init script functions
+. /etc/init.d/init-functions
+
+# Save option values passed in through the environment
+for N in PCMCIA PCIC PCIC_OPTS CORE_OPTS CARDMGR_OPTS SCHEME ; do
+    V=`eval echo '$'$N` ; if [ "$V" ] ; then eval ENV_$N=\"$V\" ; fi
+done
+
+for N in PCMCIA PCIC PCIC_OPTS CORE_OPTS CARDMGR_OPTS SCHEME ; do
+    V=`eval echo '$'ENV_$N` ; if [ "$V" ] ; then eval $N=\"$V\" ; fi
+done
+
+[ "$PCMCIA" -a "$PCMCIA" != "yes" ] && exit 1
+[ "$PCIC" = "" ] && exit 6
+
+# Verify daemons are installed
+[ "$1" = "status" ] && NFOUND=4 || NFOUND=5
+test -f $DAEMON1 -a -f $DAEMON2 -a -f $DAEMON3 -a -f $DAEMON4 || exit $NFOUND 
+test -d $PC -a -d $CONFDIR || exit 6
+
+# Each init script action is defined below...
+
+start() {
+	local RET ERROR=
+
+        log_status_msg "Starting PCMCIA services: " -n
+        [ -L $SC -o ! -O $SC ] &&  rm -f $SC
+        [ ! -f $SC ] && umask 022 ; touch $SC
+        [ "$SCHEME" ] && umask 022 ; echo $SCHEME > $SC
+        grep -q pcmcia /proc/devices
+        if [ $? -ne 0 ] ; then
+                $DAEMON2 pcmcia_core $CORE_OPTS
+                if ! $DAEMON2 $PCIC $PCIC_OPTS ; then
+                    $DAEMON2 yenta_socket 2>/dev/null &&
+                    log_warning_msg "using yenta_socket instead of $PCIC" -n
+                fi
+                $DAEMON2 ds
+		log_status_msg "pcmcia_core" -n
+                $DAEMON3 $PC/pcmcia_core.o $CORE_OPTS
+		RET=$?
+        	[ $RET -eq 0 ] && log_success_msg " " -n 
+			       || log_failure_msg " failed ($RET: $ERROR)."; return 1
+		log_status_msg "$PIC" -n
+                $DAEMON3 $PC/$PCIC.o $PCIC_OPTS
+		RET=$?
+                [ $RET -eq 0 ] && log_success_msg " " -n
+                               || log_failure_msg " failed ($RET: $ERROR)."; return 1
+		log_status_msg "ds" -n
+                $DAEMO3 $PC/ds.o
+		RET=$?
+                [ $RET -eq 0 ] && log_success_msg " " -n
+                               || log_failure_msg " failed ($RET: $ERROR)."; return 1
+        fi
+        if [ ! killproc $BASENAME1 -0 ]  
+        then
+            if [ -r $STAB ] ; then
+                cat $STAB |  while read SN CLASS MOD INST DEV EXTRA ; do
+                        [ "$SN" != "Socket" ] && $CONFDIR/$CLASS stop $DEV 2> /dev/null
+    done
+            fi
+	    log_status_msg "$BASENAME1" -n
+	    # Install symlink to the rest of the conf files.
+	    ln -sf /lib/modules/$VER/pcmcia-config/board.opts \
+	    	$CONFDIR/board.opts
+            $DAEMON1 $CARDMGR_OPTS
+	    RET=$?
+            [ $RET -eq 0 ] && log_success_msg " done."
+                           || log_failure_msg " failed ($RET: $ERROR)."; return 1	
+        fi
+        touch $PIDFILE 2>/dev/null
+	return 0
+}
+
+stop () {
+	local RET ERROR=
+
+	log_status_msg "Shutting down $DESC: " -n
+	log_status_msg "$BASENAME" -n
+	killproc $BASENAME1
+	# Give cardmgr a few seconds to handle the signal
+        for N in 1 2 3 4 5 1 2 3 4 5 1 2 3 4 5 ; do
+                killproc $BASENAME1 -0 || break
+                sleep 2
+        done
+	pidstatus $BASENAME1
+	RET=$?
+	[ $RET -eq 0 ] && log_success_msg ". "
+	               || log_failure_msg "failed ($RET: $ERROR). " -n; return 1
+
+	if grep -q "ds  " /proc/modules ; then
+	    log_status_msg "ds" -n
+            $DAEMON4 ds
+	    RET=$?
+            [ $RET -eq 0 ] && log_success_msg ". "
+                           || log_failure_msg "failed ($RET: $ERROR). " -n; return 1	
+            log_status_msg "$PIC" -n
+            $DAEMON4 $PCIC
+	    RET=$?
+            [ $RET -eq 0 ] && log_success_msg ". "
+                           || log_failure_msg "failed ($RET: $ERROR). " -n; return 1
+	    log_status_msg "pcmcia_core" -n
+            $DAEMON4 pcmcia_core
+            RET=$?
+            [ $RET -eq 0 ] && log_success_msg "done."
+                           || log_failure_msg "failed ($RET: $ERROR). " -n; return 1
+    fi
+        rm -f $PIDFILE
+
+	log_status_msg ""
+	return 0
+}
+
+restart() {
+	local RET
+
+	log_status_msg "Restarting $DESC..."
+	stop
+	start
+	RET=$?
+
+	return $RET
+}
+
+tryrestart() {
+	local RET
+
+	pidstatus $BASENAME1
+	RET=$?
+	if [ $RET -eq 0 ]; then
+		restart
+		RET=$?
+	else
+		RET=7
+	fi
+
+	return $RET
+}
+
+status() {
+	local RET
+
+	printstatus $BASENAME1
+	RET=$?
+
+	return $RET
+}
+
+#
+# Everything after this should be the same for all init scripts
+#
+# See the policy manual for information on actions and return codes.
+#
+
+parse() {
+	case "$1" in
+		start)
+			start
+			return $?
+			;;
+    stop)
+			stop
+			return $?
+	;;
+		restart|reload|force-reload)
+			restart
+			return $?
+	;;
+		try-restart)
+			tryrestart
+			return $?
+			;;
+		status)
+			status
+			return $?
+	;;
+    *)
+			echo "Usage: $INIT_NAME " \
+			"{start|stop|restart|try-restart|reload|" \
+			"force-reload|status}" >&2
+	;;
+    esac
+
+	return 1
+}
+
+parse $@
+

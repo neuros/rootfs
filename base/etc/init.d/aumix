@@ -1,0 +1,152 @@
+#! /bin/sh
+# aumix(-gtk)    Save/restore mixer settings on bootup
+# Original version by Leon Breedt <ljb@debian.org>
+# Heavily edited by Eduard Bloch <blade@debian.org>
+# Some changes (2002) by Bas Zoetekouw <bas@debian.org>
+# Supports multiple devices with probing and devfs.
+#
+# chkconfig: 2345 20 20
+#
+
+CONF=/etc/aumixrc
+AUMIX=/usr/bin/aumix
+DEFAULTFILE=/etc/default/aumix
+KEYFILE=/etc/default/aumix.stop
+
+[ -x $AUMIX ] || exit 0
+
+# handle /etc/defaults/aumix stuff
+SAVEMIXER="yes" # save and restore mixer setting by default
+HANDLEALSA="no" # do not save and restore if ALSA detected by default
+if [ -f $DEFAULTFILE ]; then
+  . $DEFAULTFILE
+fi
+
+if [ $SAVEMIXER = "no" -o $SAVEMIXER = "NO" ];  then
+  # exit silently
+  exit 0
+fi
+
+# backward compatibility
+if [ -f $KEYFILE ] ; then
+   echo "Warning: use of $KEYFILE is obsolete."
+   echo "Edit /etc/default/aumix instead."
+   echo "Key file $KEYFILE detected, won't execute aumix."
+   exit 0
+fi
+
+
+export PATH=/usr/sbin:$PATH
+export I=""
+
+# check for loaded ALSA drivers and saved ALSA mixer settings (alsactl)
+if [ -e /proc/asound  -a  -e /etc/asound.state -a  \
+	\! \( $HANDLEALSA = "yes" -o $HANDLEALSA = "YES" \) ]; then
+   echo "Saved ALSA mixer settings detected; aumix will not touch mixer."
+   exit 0
+fi
+
+# if we have devfs mounted and there are mixer devices, use it rather then
+# try-and-error methods
+if test -e /dev/.devfsd && ls /dev/sound/mixer* >/dev/null 2>&1; then
+   MIXERS=`cd /dev/sound; ls mixer* 2>/dev/null`
+   mute ()
+   {
+      echo "muting."
+      for x in $MIXERS; do
+         $AUMIX -d /dev/sound/$x -v 0
+      done
+   }
+   load ()
+   {
+      echo -n "Restoring mixer settings: "
+      for x in $MIXERS; do
+         $AUMIX -d /dev/sound/$x -f $CONF${x#mixer} -L >/dev/null
+         echo -n "$x, ";
+      done
+      echo "done."
+   }
+   store ()
+   {
+      echo -n "Saving mixer settings: "
+      for x in $MIXERS; do
+         $AUMIX -d /dev/sound/$x -f $CONF${x#mixer} -S
+         echo -n "$x, ";
+      done
+   }
+else
+   # no devfs, probing
+   store ()
+   {
+      I=""
+      echo -n "Saving mixer settings: "
+      while $AUMIX -d /dev/mixer$I -f $CONF$I -S 2>/dev/null >/dev/null; do
+         echo -n "mixer$I, "
+         test "x$I" = "x" && I=0
+         I=`expr $I + 1`
+      done
+      if [ "$I" = "" ]; then
+         echo "failed."
+         return 1;
+      fi
+   }
+
+   load ()
+   {
+      I=""
+      echo -n "Restoring mixer settings: "
+      while [ -f $CONF$I ] && $AUMIX -d /dev/mixer$I -f $CONF$I -L 2>/dev/null >/dev/null; do
+         echo -n "mixer$I, "
+         test "x$I" = "x" && I=0
+         I=`expr $I + 1`
+      done
+      if [ "$I" = "" ]; then
+         echo "failed."
+         return 1;
+      else
+         echo "done."
+      fi
+   }
+
+   mute ()
+   {
+      I=""
+      echo "muting."
+      while $AUMIX -d /dev/mixer$I -v 0 2>/dev/null >/dev/null; do
+         test "x$I" = "x" && I=0
+         I=`expr $I + 1`
+      done
+   }
+fi
+
+case "$1" in
+    start|restart|reload|force-reload)
+        if [ -f $CONF ]; then
+            rm -f /var/lock/aumix/saved
+            load
+        fi
+        ;;
+    stop)
+        if [ -f /var/lock/aumix/saved ] ; then
+          echo "Settings already stored and devices muted, not saving again..."
+        else
+           if store; then
+              touch /var/lock/aumix/saved
+              mute
+           fi
+        fi
+        ;;
+    save)
+        if [ -f /var/lock/aumix/saved ] ; then
+          echo "Settings already stored and devices muted, not saving again..."
+        else
+           store && echo done.
+        fi
+        ;;
+    *)
+        echo "Usage: /etc/init.d/aumix {start|stop|save}" 
+        exit 1
+        ;;
+esac
+
+exit 0

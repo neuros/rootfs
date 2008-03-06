@@ -1,0 +1,10 @@
+#
+#	Configuration file for ntpdate.
+#	Copyright(C) 2004-2005, MontaVista Software, Inc.
+#
+
+#
+#	TIMESERVER
+#	Specify timeserver for time synchronization here.
+#
+TIMESERVER=

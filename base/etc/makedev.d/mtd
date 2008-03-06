@@ -1,0 +1,8 @@
+# Support for mtd devices  Based from the mtd MAKEDEV script.
+b $STORAGE              31   0  1  16 mtdblock%d
+a mtd ftl
+a mtd nftl
+a mtd inftl
+
+# mtd, mtdr, and mtdblock will automatically be created when asking for "mtd"
+

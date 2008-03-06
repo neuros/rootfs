@@ -1,0 +1,5 @@
+#%PAM-1.0
+auth	required	pam_nologin.so
+auth	required	pam_env.so
+auth	required	pam_unix_auth.so shadow nullok
+account	required	pam_unix_acct.so

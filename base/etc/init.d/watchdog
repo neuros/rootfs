@@ -1,0 +1,73 @@
+#!/bin/sh
+#/etc/init.d/watchdog: start watchdog daemon.
+#
+# chkconfig: S 98 2
+#
+
+test -x /usr/sbin/watchdog || exit 0
+
+# Set run_watchdog to 1 to start watchdog or 0 to disable it.
+run_watchdog=0
+
+# Specify additional watchdog options here (see manpage).
+watchdog_options=""
+
+NAME=watchdog
+DAEMON=/usr/sbin/watchdog
+
+case "$1" in
+  start)
+    if [ $run_watchdog = 1 ]
+    then
+	echo -n "Starting watchdog daemon: "
+	if start-stop-daemon --start --quiet \
+	    --exec $DAEMON -- $watchdog_options
+	then
+	    echo watchdog.
+	else
+	    echo
+	fi
+    fi
+    ;;
+
+  stop)
+    if [ $run_watchdog = 1 ]
+    then
+	echo -n "Stopping watchdog daemon: "
+	if start-stop-daemon --stop --quiet \
+	    --pidfile /var/run/$NAME.pid
+	then
+	    echo watchdog.
+	else
+	    echo
+	fi
+    fi
+    ;;
+
+  restart)
+    $0 force-reload
+    ;;
+
+  force-reload)
+    if [ $run_watchdog = 0 ]; then exit 0; fi
+    echo -n "Restarting $NAME daemon."
+    /etc/init.d/$NAME stop > /dev/null 2>&1
+    echo -n "."
+    sleep 5
+    echo -n "."
+    if start-stop-daemon --start --quiet --pidfile /var/run/$NAME.pid \
+	--exec $DAEMON -- $watchdog_options
+    then
+	echo "done."
+    else
+	echo
+    fi
+    ;;
+
+  *)
+    echo "Usage: /etc/init.d/watchdog {start|stop|restart|force-reload}"
+    exit 1
+
+esac
+
+exit 0

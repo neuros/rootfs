@@ -1,0 +1,113 @@
+#! /bin/sh
+#
+# Name: anacron
+# Date: 2003-06-20 15:46 
+# Author: MontaVista Software, Inc. <source@mvista.com>
+# Copyright: Copyright 1999-2003 MontaVista Software, Inc.
+# License: 2003 (c) MontaVista Software, Inc. This file is licensed
+#          under the terms of the GNU General Public License version 2.
+#          This program is licensed "as is" without any warranty of any
+#          kind, whether express or implied.
+#
+# Copyright 2002, 2003, 2004 Sony Corporation
+# Copyright 2002, 2003, 2004 Matsushita Electric Industrial Co., Ltd.
+#
+### BEGIN INIT INFO
+# Required-Start: 
+# Required-Stop:
+# Should-Start:
+# Should-Stop:
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
+# Short-Description: anac(h)ronistic cron daemon
+# Description: Anacron  can  be  used  to  execute  commands  periodically,
+# with a frequency specified in days.
+### END INIT INFO 
+# chkconfig: 2345 89 11
+
+# Init script information
+INIT_NAME=anacron
+DESC="Anachronistic daemon"
+
+# Individual Daemon information
+DAEMON1=/usr/sbin/anacron
+ARGS1="-s"
+BASENAME1=${DAEMON1##*/}
+DAEMON2=/usr/bin/on_ac_power
+ARGS2=""
+BASENAME2=
+
+# Load init script configuration
+[ -f /etc/default/$INIT_NAME ] && . /etc/default/$INIT_NAME
+
+# Source the init script functions
+. /etc/init.d/init-functions
+
+# Verify daemons are installed
+[ "$1" = "status" ] && NFOUND=4 || NFOUND=5
+test -f $DAEMON1 || exit $NFOUND
+
+# Each init script action is defined below...
+
+start() {
+	local RET ERROR=
+
+    	if test \! -x $DAEMON2 || $DAEMON2 >/dev/null
+        then
+		log_status_msg "Starting $DESC: " -n
+	        log_status_msg "$BASENAME1" -n
+        	start_daemon $DAEMON1 $ARGS1
+	        RET=$?
+        	if [ $RET -eq 0 ]; then
+                	log_success_msg ". "
+        	else
+                	log_failure_msg " failed ($RET: $ERROR)."
+                	return 1
+        fi
+    	else
+        	log_status_msg "Starting anac(h)ronistic cron: deferred while on battery power."
+		return 1
+    fi
+
+	return 0
+}
+
+status() {
+	local RET
+	
+	printstatus $BASENAME1
+	RET=$?
+
+	return $RET
+}
+
+#
+# Everything after this should be the same for all init scripts
+#
+# See the policy manual for information on actions and return codes.
+#
+
+parse() {
+	case "$1" in
+		start)
+			start
+			return $?
+    ;;
+		stop|restart|try-restart|reload|force-reload)
+  	# nothing to do
+    ;;
+		status)
+			status
+			return $?
+    ;;
+  *)
+			echo "Usage: $INIT_NAME " \
+			"{start|stop|restart|try-restart|reload|force-reload|status}" >&2
+    ;;
+	esac
+	
+	return 1
+}
+
+parse $@
+

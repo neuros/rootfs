@@ -1,0 +1,229 @@
+#! /bin/sh
+#
+# Name: squid 
+# Date: 2003-06-28 12:10
+# Author: MontaVista Software, Inc. <source@mvista.com>
+# Copyright: Copyright 1999-2003 MontaVista Software, Inc.
+# License: 2003 (c) MontaVista Software, Inc. This file is licensed
+#          under the terms of the GNU General Public License version 2.
+#          This program is licensed "as is" without any warranty of any
+#          kind, whether express or implied.
+# 
+# Copyright 2002, 2003, 2004 Sony Corporation
+# Copyright 2002, 2003, 2004 Matsushita Electric Industrial Co., Ltd.
+#
+### BEGIN INIT INFO
+# Required-Start: 
+# Required-Stop:
+# Should-Start:
+# Should-Stop:
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
+# Short-Description: Startup script for the SQUID HTTP proxy-cache.
+# Description: Startup script for the SQUID HTTP proxy-cache.
+### END INIT INFO 
+# chkconfig: 2345 20 20
+
+# Init script information
+INIT_NAME=squid
+DESC="proxy server"
+
+# Individual Daemon information
+DAEMON1=/usr/sbin/squid
+ARGS1="-D -sYC"
+BASENAME1=${DAEMON1##*/}
+LIB=/usr/lib/squid
+PIDFILE=/var/log/squid/$BASENAME1.pid
+SQUID_CACHE=/var/cache/squid
+SQUID_USER=daemon
+FILEMAX=/proc/sys/fs/file-max
+
+# Load init script configuration
+[ -f /etc/default/$INIT_NAME ] && . /etc/default/$INIT_NAME
+
+# Source the init script functions
+. /etc/init.d/init-functions
+
+# Verify daemons are installed
+[ "$1" = "status" ] && NFOUND=4 || NFOUND=5
+test -f $DAEMON1 || exit $NFOUND
+test -f $FILEMAX || exit 6
+
+# Each init script action is defined below...
+
+start() {
+	local RET ERROR=
+
+	log_status_msg "Starting $DESC: " -n
+	log_status_msg "$BASENAME1" -n
+        chown $SQUID_USER.$SQUID_USER /var/log/squid
+        chown $SQUID_USER.$SQUID_USER $SQUID_CACHE/00
+        [ ! -d $SQUID_CACHE/00 ] && $DAEMON1 -z 2> /dev/null
+        w="     " # space tab
+        # sed is cool.
+        cdr=`sed -ne '	\
+                s/^'$cache_dir'['"$w"']\+[^'"$w"']\+['"$w"']\+\([^'"$w"']\+\).*$/\1/p;	\
+                t end;	\
+                d;	\
+                :end q' < /etc/$BASENAME1.conf`
+        [ -z "$cdr" ] && cdr=/var/spool/$BASENAME
+
+        case "$cdr" in
+                [0-9]*)
+                        log_status_msg "squid: squid.conf contains 2.2.5 syntax " -n
+                        log_status_msg "cache_dir directive - not starting" -n 
+                        exit 6
+                        ;;
+        esac
+        [ `cat $FILEMAX` -lt 8192 ] && echo 8192 > $FILEMAX
+        [ `ulimit -n` -lt 4096 ] && ulimit -n 4096
+        cd $cdr
+	start_daemon -p $PIDFILE $DAEMON1 $SQUID_ARGS 
+	RET=$?
+	sleep 1
+	if [ $RET -eq 0 ]; then
+                log_success_msg "done."
+        else
+                log_failure_msg " failed ($RET: $ERROR)."
+                return 1
+        fi
+
+	log_status_msg ""
+	return 0
+}
+
+stop () {
+	local RET ERROR=
+
+        log_status_msg "Stopping $DESC: " -n
+        log_status_msg "$BASENAME1 " -n
+        killproc -p $PIDFILE $DAEMON1
+        RET=$?
+	if [ $RET -eq 0 ]; then
+                log_success_msg "done." 
+        else
+		sleep 2
+		killproc -p $PIDFILE $DAEMON1 -0
+		log_success_msg "waiting " -n
+		cnt=0
+		while killproc -p $PIDFILE $DAEMON1 -0
+		do
+			cnt=`expr $cnt + 1`
+			[ $cnt -gt 60 ] && log_failure_msg "failed ($RET: $ERROR)."; return 1
+			sleep 2
+			log_success_msg "." -n
+		done
+        fi
+
+	return 0
+}
+
+restart() {
+	local RET
+
+	log_status_msg "Restarting $DESC..."
+	stop
+	start
+	RET=$?
+
+	return $RET
+}
+
+tryrestart() {
+	local RET
+
+	pidstatus $BASENAME1
+	RET=$?
+	if [ $RET -eq 0 ]; then
+		restart
+		RET=$?
+	else
+		RET=7
+	fi
+
+	return $RET
+}
+
+#
+# if the service does not support reload return code 3 should
+# be the result...
+#
+reload() {
+	local RET
+
+	log_status_msg "Reloading $DESC configuration..." -n
+	killproc -p $PIDFILE -HUP
+	#
+	# repeat as necessary...
+	#
+	log_success_msg "done."
+
+	return 0
+}
+
+forcereload() {
+	local RET
+
+	reload
+	RET=$?
+	if [ $RET -ne 0 ]; then
+		restart
+		RET=$?
+	fi
+	
+	return $RET
+}
+
+status() {
+	local RET
+	
+	printstatus $BASENAME1
+	RET=$?
+
+	return $RET
+}
+
+#
+# Everything after this should be the same for all init scripts
+#
+# See the policy manual for information on actions and return codes.
+#
+
+parse() {
+	case "$1" in
+		start)
+			start
+			return $?
+			;;
+		stop)
+			stop
+			return $?
+			;;
+		restart)
+			restart
+			return $?
+			;;
+		try-restart)
+			tryrestart
+			return $?
+			;;
+		reload | force-reload)
+			reload
+			return $?
+			;;
+		status)
+			status
+			return $?
+			;;
+		*)
+			echo "Usage: $INIT_NAME " \
+			"{start|stop|restart|try-restart|reload|" \
+			"force-reload|status}" >&2
+			;;
+	esac
+	
+	return 1
+}
+
+parse $@
+

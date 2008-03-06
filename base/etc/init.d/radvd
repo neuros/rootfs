@@ -1,0 +1,107 @@
+#! /bin/sh
+#
+# chkconfig: 2345 50 50
+
+PATH=/sbin:/bin:/usr/sbin:/usr/bin
+DAEMON=/usr/sbin/radvd
+NAME=radvd
+DESC=radvd
+CONFIG=/etc/radvd.conf
+SAVED_SETTINGS=/var/run/radvd.saved
+
+test -x $DAEMON || exit 0
+
+set -e
+
+# Check for IPv6 support in kernel
+if test \! -e /proc/sys/net/ipv6; then
+  echo "IPv6 support must be enabled in the kernel for $DESC to work."
+  exit
+fi
+
+save_settings()
+{
+    local file=$1
+    
+    rm -f $file
+    for if_conf in /proc/sys/net/ipv6/conf/*; do
+	echo -e "$if_conf/forwarding\t `cat $if_conf/forwarding`" >> $file
+    done
+    return 0
+}
+
+restore_settings()
+{
+    file=$1
+    
+    if [ ! -f $file ]; then
+	echo "$0: warning: cannot restore settings"
+	return
+    fi
+    
+    ( 
+	while read f value; do
+	    if [ -w $f ]; then
+		echo $value > $f
+	    fi
+	done
+    ) < $file
+}
+
+chkconfig() {
+    if [ ! -e $CONFIG -o ! -s $CONFIG ]; then
+	echo "* $CONFIG does not exist or is empty." 
+	echo "* See /usr/share/doc/radvd/examples/simple-ravd.conf for a simple"
+	echo "* configuration suitable for most systems, and radvd.conf(5)"
+	echo "* for configuration file syntax. radvd will *not* be started."
+	exit 0
+    fi
+}
+
+case "$1" in
+  start)
+	echo -n "Starting $DESC: "
+	chkconfig
+	save_settings $SAVED_SETTINGS
+	
+        # We must enable IPv6 forwarding for radvd to work
+	echo 1 > /proc/sys/net/ipv6/conf/all/forwarding
+
+	if ! start-stop-daemon --oknodo --start --pidfile /var/run/$NAME.pid \
+		--exec $DAEMON; then
+	  echo "failed." && exit 1
+	fi
+	echo "$NAME."
+	;;
+  stop)
+	echo -n "Stopping $DESC: "
+	start-stop-daemon --oknodo --stop --pidfile /var/run/$NAME.pid \
+		--exec $DAEMON
+	restore_settings $SAVED_SETTINGS
+	rm -f $SAVED_SETTINGS
+	echo "$NAME."
+	;;
+  reload|force-reload)
+	echo "Reloading $DESC configuration files."
+	start-stop-daemon --stop --signal HUP --quiet --pidfile \
+	    /var/run/$NAME.pid --exec $DAEMON
+	
+	;;
+  restart)
+	chkconfig
+	echo -n "Restarting $DESC: "
+	start-stop-daemon --stop --quiet --pidfile \
+		/var/run/$NAME.pid --exec $DAEMON
+	sleep 1
+	start-stop-daemon --start --quiet --pidfile \
+		/var/run/$NAME.pid --exec $DAEMON
+	echo "$NAME."
+	;;
+  *)
+	N=/etc/init.d/$NAME
+	echo "Usage: $N {start|stop|restart|reload|force-reload}" >&2
+	exit 1
+	;;
+esac
+
+exit 0

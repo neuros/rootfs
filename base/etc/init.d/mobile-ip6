@@ -1,0 +1,356 @@
+#! /bin/sh
+#
+# Name: mip6d
+# Date: 2005-06-11 12:00
+# Author: MontaVista Software, Inc. <source@mvista.com>
+# Copyright: Copyright 1999-2005 MontaVista Software, Inc.
+# License: 2003 (c) MontaVista Software, Inc. This file is licensed
+#          under the terms of the GNU General Public License version 2.
+#          This program is licensed "as is" without any warranty of any
+#          kind, whether express or implied.
+#
+# Copyright 2002, 2003, 2004 Sony Corporation
+# Copyright 2002, 2003, 2004 Matsushita Electric Industrial Co., Ltd.
+#
+### BEGIN INIT INFO
+# Required-Start: 
+# Required-Stop:
+# Should-Start:
+# Should-Stop:
+# Default-Start: 3 4 5
+# Default-Stop: 0 1 6
+# Short-Description: start/stop the Mobile IPv6 daemon 
+# Description: start/stop the Mobile IPv6 daemon 
+### END INIT INFO 
+# chkconfig: 2345 75 05
+
+# Init script information
+DESC="Mobile IPv6 for Linux"
+
+# Individual Daemon information
+DAEMON="/usr/sbin/mip6d"
+BASENAME=${DAEMON##*/}
+DAEMON_CONF="/etc/mipv6/mip6d.conf"
+ARGS="-c $DAEMON_CONF"
+IFCONFIG="/sbin/ifconfig"
+SED=/bin/sed
+AWK=/bin/awk
+GREP=/bin/grep
+SLEEP=/bin/sleep
+SETKEY=/usr/sbin/setkey
+MODPROBE=/sbin/modprobe
+
+# Daemon configuration variables
+NODECONFIG_NAME="NodeConfig"
+LINKNAME_NAME="Interface"
+
+# Module names
+AH6_MODULE=ah6
+AH6_MODULE_ARGS=
+ESP6_MODULE=esp6
+ESP6_MODULE_ARGS=
+PFKEY_MODULE=af_key
+PFKEY_MODULE_ARGS=
+
+# Source the init script functions
+. /etc/init.d/init-functions
+
+# Verify daemon and tools are installed
+[ "$1" = "status" ] && NFOUND=4 || NFOUND=5
+test -f $DAEMON -a -f $SETKEY || exit $NFOUND
+
+start() {
+	local RET
+
+	## Check if the kernel has support for mobility
+	KSYMS="/proc/kallsyms"
+	MIP6_INITSYM=mip6_init
+	"$GREP" "$MIP6_INITSYM" $KSYMS > /dev/null
+	RET=$?
+	if [ "$RET" -ne 0 ]; then
+		log_failure_msg "You do not have a kernel configured for Mobile IPv6"
+		log_failure_msg "Please recompile with CONFIG_IPV6_MIP6 option"
+		return $RET 
+	fi
+
+	## Make sure PF_KEY is enabled
+	#  Takes care of XFRM and XFRM_USER too
+
+	# Try to load the PF_KEY module first (af_key)
+	$MODPROBE $PFKEY_MODULE $PFKEY_MODULE_ARGS 2> /dev/null
+	RET=$?
+	if [ "$RET" -ne 0 ]; then
+
+		# Check for built-in PF_KEY support
+		PFKEY_INITSYM=ipsec_pfkey_init                                               		
+	        "$GREP" "$PFKEY_INITSYM" $KSYMS > /dev/null
+	        RET=$?
+	        if [ "$RET" -ne 0 ]; then
+	        	log_failure_msg "The kernel does not have support for PF_KEY sockets."
+	        	log_failure_msg "Please recompile with CONFIG_NET_KEY option"
+	        	return $RET 
+	        fi
+	fi
+
+        ## Verify ESP and AH is supported in the kernel
+	#  Sufficient to check if cryptographic algorithms are included
+	$MODPROBE $ESP6_MODULE $ESP6_MODULE_ARGS 2> /dev/null
+	RET=$?
+	if [ "$RET" -ne 0 ]; then
+
+		# Check for built-in ESP6 support
+		ESP6_INITSYM=esp6_init                                                                            		
+	        "$GREP" "$ESP6_INITSYM" $KSYMS > /dev/null
+	        RET=$?
+	        if [ "$RET" -ne 0 ]; then
+	        	log_failure_msg "The kernel does not have support for ESP6."
+	        	log_failure_msg "Please recompile with CONFIG_INET6_ESP or CONFIG_INET6_ESP_MODULE option"
+	        	return $RET 
+	        fi
+	fi
+
+	## Check AH6
+	$MODPROBE $AH6_MODULE $AH6_MODULE_ARGS 2> /dev/null
+	RET=$?
+	if [ "$RET" -ne 0 ]; then
+
+		# Check for built-in AH6 support
+		AH6_INITSYM=ah6_init                                                                     		
+	        "$GREP" "$AH6_INITSYM" $KSYMS > /dev/null
+	        RET=$?
+	        if [ "$RET" -ne 0 ]; then
+	        	log_failure_msg "Warning: The kernel does not have support for AH6."
+	        	log_failure_msg "Please recompile with CONFIG_INET6_AH or CONFIG_INET6_AH_MODULE"
+	        	log_failure_msg "option, if you require AH functionality"
+	        fi
+	fi
+
+        ## If there is no daemon config file, skip starting
+        if ! [ -f "$DAEMON_CONF" ]; then
+		RET=6
+		log_failure_msg "no file $DAEMON_CONF found (return code $RET)"
+		ret=$RET
+        fi
+
+	# Flush IPsec SA and Policy database
+	log_status_msg "Cleaning up IPsec SA and Policy databases .. " -n
+	"$SETKEY" -F
+	"$SETKEY" -FP
+
+	# Check for errors at every step
+	RET=$?
+	if [ "$RET" -eq 0 ]; then
+		log_success_msg "done."
+	else
+		log_failure_msg "failed (return code $RET)."
+		return $RET 
+	fi
+
+	# Default case for mobile node
+	FORWARD_ON="0"
+	AUTOCONF_ON="1"
+	ACCEPT_RA="1"
+	ACCEPT_REDIRECTS="1"
+
+	# Extract mode information from DAEMON_CONF
+	Mode=`sed -n "/$NODECONFIG_NAME/p" $DAEMON_CONF | awk '{print $2}' | awk -F\; '{print $1}' | sed 's/^[ \t]*//'`
+	
+	# We set forwarding ON only on the Home Agent
+	if [[ "$Mode" = "HA" ]];
+	then
+		FORWARD_ON="1"      			
+                AUTOCONF_ON="0"
+                ACCEPT_RA="0"
+                ACCEPT_REDIRECTS="0"
+	fi
+
+	# Extract interface information from DAEMON_CONF
+	Interfaces=`$SED -n "/$LINKNAME_NAME/p" $DAEMON_CONF | $AWK '{print $1, $2}' | $GREP -v "^#" | $AWK -F\" '{print $2}'`
+
+	# Disable forwarding on the mobile node (on each of the interfaces)
+	log_status_msg "Reconfiguring Interfaces .. " 
+
+	for i in "$Interfaces"; do
+		log_status_msg "Interface $i .. " -n
+
+		# Reconfigure network interfaces
+		"$IFCONFIG" "$i" down up
+
+		# Errors?                                           		
+	        RETVAL=$?
+	        if [ "$RETVAL" -eq 0 ]; 
+		then
+	        	log_success_msg "done."
+	        else
+	        	log_failure_msg "failed (return code $RETVAL)."
+	        	return "$RETVAL" 
+	        fi
+
+		# Sync
+		usleep 2000000
+
+		##
+		echo $FORWARD_ON > /proc/sys/net/ipv6/conf/$i/forwarding
+		echo $AUTOCONF_ON > /proc/sys/net/ipv6/conf/$i/autoconf
+		echo $ACCEPT_RA > /proc/sys/net/ipv6/conf/$i/accept_ra
+		echo $ACCEPT_REDIRECTS > /proc/sys/net/ipv6/conf/$i/accept_redirects
+	done
+
+	# Start the mobile ipv6 daemon
+	log_status_msg "Starting $DESC: as $Mode .. " 
+
+	start_daemon $DAEMON $ARGS #&>/dev/null
+	RET=$?
+
+	# Additional Checking of pidofproc $BASENAME makes sure that the return
+	# code is error if there are parse errors while reading $DAEMON_CONF
+	if [ $RET -eq 0 ] && pidofproc $BASENAME &>/dev/null; then
+		log_success_msg "done."
+	else
+		RET=7
+		log_failure_msg "failed (return code $RET)."
+		return $RET 
+	fi
+
+	if [[ $Mode = "HA" ]];
+	then
+		log_status_msg "Please remember to start Router Adv Damon (radvd); check with 'radvdump'"
+	fi
+		
+	return $RET 
+}
+
+stop () {
+	local RET
+	
+	log_status_msg "Stopping $DESC: " -n
+
+	killproc "$BASENAME"
+	RET=$?
+
+	if [ "$RET" -eq 0 ]; then
+		log_success_msg "done."
+		log_status_msg "Please remove the IPsec modules ($AH6_MODULE, $ESP6_MODULE)"
+		log_status_msg "manually if they are not being used anymore."
+	else
+		log_failure_msg "failed (return code $RET). "
+	fi
+
+	return "$RET"
+}
+
+restart() {
+	local RET
+
+	log_status_msg "Restarting $DESC: "
+	stop
+	start
+	RET=$?
+
+	if [ $RET -eq 0 ]; then
+        	log_success_msg "done."
+        else
+                log_failure_msg "failed (return code $RET). "
+        fi
+
+	return $RET
+}
+
+tryrestart() {
+	local RET
+
+	pidstatus $BASENAME
+	RET=$?
+	if [ $RET -eq 0 ]; then
+		restart
+		RET=$?
+	else
+		RET=7
+	fi
+
+	return $RET
+}
+
+
+reload() {
+	local RET
+
+	log_status_msg "Reloading $DESC configuration: " -n
+
+	killproc $BASENAME -HUP
+	RET=$?
+
+        if [ $RET -eq 0 ]; then
+                log_success_msg "done."
+        else
+                log_failure_msg "failed (return code $RET). "
+        fi
+
+	return $RET
+}
+
+forcereload() {
+	local RET
+
+	reload
+	RET=$?
+
+	if [ $RET -ne 0 ]; then
+		restart
+		RET=$?
+	fi
+
+	return $RET
+}
+
+status() {
+	local RET
+
+	printstatus $BASENAME
+	RET=$?
+
+	return $RET
+}
+
+parse() {
+	case "$1" in
+ 		start)
+			start
+			return $?
+			;;
+  		stop)
+			stop
+			return $?
+			;;
+		restart)
+			restart
+			return $?
+			;;
+		try-restart)
+			tryrestart
+			return $?
+			;;
+		reload)
+			reload
+			return $?
+			;;
+		force-reload)
+			forcereload
+			return $?
+			;;
+		status)
+			status
+			return $?
+			;;
+  		*)
+			echo "Usage: $INIT_NAME " \
+			"{start|stop|restart|try-restart|reload|" \
+			"force-reload|status}" >&2
+			;;
+	esac
+	
+	return 1
+}
+
+parse $@
+

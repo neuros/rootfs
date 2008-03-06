@@ -1,0 +1,27 @@
+/var/log/apache/access_log {
+    missingok
+    postrotate
+	/usr/bin/killall -HUP httpd 2> /dev/null || true
+    endscript
+}
+
+/var/log/apache/agent_log {
+    missingok
+    postrotate
+	/usr/bin/killall -HUP httpd 2> /dev/null || true
+    endscript
+}
+
+/var/log/apache/error_log {
+    missingok
+    postrotate
+	/usr/bin/killall -HUP httpd 2> /dev/null || true
+    endscript
+}
+
+/var/log/apache/referer_log {
+    missingok
+    postrotate
+	/usr/bin/killall -HUP httpd 2> /dev/null || true
+    endscript
+}

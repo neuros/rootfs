@@ -1,0 +1,258 @@
+#! /bin/sh
+#
+# Name: zebra 
+# Date: 2003-06-30
+# Author: MontaVista Software, Inc. <source@mvista.com>
+# Copyright: Copyright 1999-2003 MontaVista Software, Inc.
+# License: 2003 (c) MontaVista Software, Inc. This file is licensed
+#          under the terms of the GNU General Public License version 2.
+#          This program is licensed "as is" without any warranty of any
+#          kind, whether express or implied.
+#
+# Copyright 2002, 2003, 2004 Sony Corporation
+# Copyright 2002, 2003, 2004 Matsushita Electric Industrial Co., Ltd.
+#
+### BEGIN INIT INFO
+# Required-Start: 
+# Required-Stop:
+# Should-Start:
+# Should-Stop:
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
+# Short-Description: start/stop the Zebra routing daemons
+# Description: start/stop the Zebra routing daemons
+### END INIT INFO 
+# chkconfig: 2345 20 20
+
+# Init script information
+INIT_NAME=/etc/zebra/daemons
+DESC="Zebra daemons"
+
+# Individual Daemon information
+ARGS1="-d"
+D_PATH=/usr/sbin
+C_PATH=/etc/zebra
+DAEMONS="zebra bgpd ripd ripngd ospfd ospf6d"
+
+# Load init script configuration
+[ -r $INIT_NAME ] && . $INIT_NAME || exit 6
+
+# Source the init script functions
+. /etc/init.d/init-functions
+
+# Verify daemons are installed
+[ "$1" = "status" ] && NFOUND=4 || NFOUND=5
+test -f $DAEMON1 || exit $NFOUND
+
+# Set priority of un-startable daemons
+# to 'no'
+
+for D in $DAEMONS; do
+        if [ ! -x "$D_PATH/$D" ] || [ ! -r "$C_PATH/$D.conf" ]; then
+                eval "$D=no"
+	fi
+done
+
+# Check if the daemon is to be run at
+# the current priority
+
+checkprio()
+{
+        cp_tp=`echo $1 | sed -e s/!//`
+	[ "$cp_tp" = "no" ] && return 1
+	cp_tp=`echo ${cp_tp} | sed -e s/#yes/10/`
+	expr "$cp_tp" '<=' "$prio" >/dev/null 2>&1
+	case $? in
+		0)
+			return 0
+		;;
+		1)
+			return 1
+		;;
+		2)
+                        log_failure_msg "Invalid priority for $1."
+			return 1
+		;;
+	esac
+}
+
+# Stops all daemons not to be run at
+# current priority (priority greater
+# than current)
+
+stop_prio()
+{
+        log_status_msg "Stopping $DESC (prio:$prio):" -n
+        for i in $DAEMONS; do
+                if ! checkprio $i
+		then stop_one "$i"
+		fi
+	done
+	echo "."
+}
+
+# Starts all daemons with priority less
+# than the current
+
+start_prio()
+{
+        log_status_msg "Starting $DESC (prio:$prio):" -n
+        for i in $DAEMONS; do
+        	if  checkprio $i 
+		then start_one "$i"
+		fi
+	done
+        log_status_msg "."
+}
+
+
+# Each init script action is defined below...
+
+start_one() {
+	local RET ERROR=
+
+	log_status_msg "$1" -n
+	start_daemon $1 $ARGS1
+	RET=$?
+	if [ $RET -eq 0 ]; then
+		log_success_msg ". "
+	else
+		log_failure_msg " failed ($RET: $ERROR)."
+		return 1
+	fi
+
+	log_status_msg ""
+	return 0
+}
+
+stop_one () {
+        local RET ERROR=
+
+        log_status_msg "$i" -n
+        killproc $i
+        RET=$?
+        if [ $RET -eq 0 ]; then
+        	log_success_msg " " -n
+        else
+                log_failure_msg " failed ($RET: $ERROR). " -n
+                return 1
+	fi
+        return 0
+}
+
+
+stop () {
+	local RET ERROR=
+
+	log_status_msg "Stopping $DESC: " -n
+	for i in $DAEMONS zebra; do
+		stop_one "$i"
+	done
+	log_status_msg ""
+	return 0
+}
+
+restart() {
+	local RET
+	
+	log_status_msg "Restarting $DESC..."
+	$0 stop
+	sleep 1
+	$0 start
+	RET=$?
+
+	return $RET
+}
+
+tryrestart() {
+	local RET
+
+	pidstatus $BASENAME1
+	RET=$?
+	if [ $RET -eq 0 ]; then
+		restart
+		RET=$?
+	else
+		RET=7
+	fi
+
+	return $RET
+}
+
+#
+# if the service does not support reload return code 3 should
+# be the result...
+#
+reload() {
+	local RET
+
+	log_status_msg "Reloading $DESC configuration..." -n
+	# killproc $BASENAME1 -HUP
+	#
+	# repeat as necessary...
+	#
+	log_success_msg "done."
+
+	return 0
+}
+
+status() {
+	local RET
+
+	printstatus $BASENAME1
+	RET=$?
+
+	return $RET
+}
+
+#
+# Everything after this should be the same for all init scripts
+#
+# See the policy manual for information on actions and return codes.
+#
+
+parse() {
+	case "$1" in
+		start|10)
+			prio=${2:-"10"}
+			start_prio
+			return $?
+			;;
+  stop|0)
+			stop
+			return $?
+    ;;
+  restart|force-reload)
+			restart
+			return $?
+			;;
+		[1-9])
+			prio="$1"
+			stop_prio
+			start_prio
+			return $?
+			;;
+		try-restart)
+			tryrestart
+			return $?
+			;;
+		reload)
+			reload
+			return $?
+			;;
+		status)
+			status
+			return $?
+    ;;
+	*)
+			echo "Usage: $INIT_NAME " \
+			"{start|stop|restart|try-restart|reload|" \
+			"force-reload|statusi}<priority>" >&2
+    ;;
+	esac
+	
+	return 1
+}
+
+parse $@
+

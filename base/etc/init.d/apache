@@ -1,0 +1,71 @@
+#! /bin/bash
+#
+# apache       Start the apache HTTP server.
+#
+# chkconfig: 2345 20 20
+#
+
+NAME=apache
+PATH=/bin:/usr/bin:/sbin:/usr/sbin
+DAEMON=/usr/sbin/httpd
+PIDFILE=/var/run/$NAME.pid
+CONF=/etc/apache/httpd.conf
+APACHECTL=/usr/sbin/apachectl 
+
+trap "" 1
+export LANG=C
+
+test -f $DAEMON || exit 0
+test -f $APACHECTL || exit 0
+
+if egrep -q -i "^[[:space:]]*ServerType[[:space:]]+inet" $CONF
+then
+    exit 0
+fi
+
+case "$1" in
+  start)
+    echo -ne "Starting web server: $NAME"
+    $APACHECTL start > /dev/null 2> /dev/null
+    echo "."
+    ;;
+
+  stop)
+    echo -ne "Stopping web server: $NAME"
+    $APACHECTL stop > /dev/null 2> /dev/null
+    echo "."
+    ;;
+
+  reload)
+    echo -ne "Reloading $NAME configuration"
+    $APACHECTL graceful > /dev/null 2> /dev/null
+    echo "."
+    ;;
+
+  reload-modules)
+    echo -ne "Reloading $NAME modules"
+    if [ -f /var/run/apache.pid ]
+    then
+        $APACHECTL stop > /dev/null 2> /dev/null
+        sleep 4
+    fi
+    $APACHECTL start > /dev/null 2> /dev/null
+    echo "."
+    ;;
+
+  restart)
+    $0 reload-modules
+    ;;
+
+  force-reload)
+    $0 reload-modules
+    ;;
+
+  *)
+    echo "Usage: /etc/init.d/$NAME start|stop|reload|reload-modules|force-reload|restart}"
+    exit 1
+    ;;
+esac
+
+exit 0
+
