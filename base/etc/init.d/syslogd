@@ -1,0 +1,27 @@
+#!/bin/sh
+
+if [ ! -d /var/log ]; then
+    exit 1
+fi
+
+if [ -r /etc/profile ]; then
+    . /etc/profile
+fi
+
+if [ "$1" = "start" ]; then
+
+        # set options to no mark, 100KB size and purge log
+        options="-m 0 -s 100 -b 0"
+
+    syslogd $options
+
+elif [ "$1" = "stop" ]; then
+
+    killall -q syslogd
+
+else
+
+    echo "Usage: `basename $0` <start|stop>"
+    exit 1
+
+fi

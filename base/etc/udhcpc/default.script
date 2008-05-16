@@ -1,0 +1,49 @@
+#!/bin/sh
+
+# udhcpc script edited by Tim Riker
+
+#[-z "$1" ] && echo "Error: should be called from udhcpc" && exit 1
+
+if test -z "$1" ; then
+echo "Error: should be called from udhcpc"
+exit 1
+fi
+
+RESOLV_CONF="/mnt/OSD/resolv.conf"
+if test -n "$broadcast" ; then
+BROADCAST="broadcast $broadcast"
+fi
+if test -n "$subnet" ; then
+NETMASK="netmask $subnet"
+fi
+case "$1" in
+deconfig)
+/sbin/ifconfig $interface 0.0.0.0
+;;
+
+renew|bound)
+/sbin/ifconfig $interface $ip $BROADCAST $NETMASK
+
+if test -n "$router" ; then
+echo "deleting routers"
+while route del default gw 0.0.0.0 dev $interface ; do
+:
+done
+
+for i in $router ; do
+route add default gw $i dev $interface
+done
+fi
+
+echo -n > $RESOLV_CONF
+if test -n "$domain" ; then
+echo search $domain >> $RESOLV_CONF
+fi
+for i in $dns ; do
+echo adding dns $i
+echo nameserver $i >> $RESOLV_CONF
+done
+;;
+esac
+
+exit 0

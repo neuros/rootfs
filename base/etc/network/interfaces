@@ -1,0 +1,10 @@
+auto lo
+iface lo inet loopback
+address 127.0.0.1
+netmask 255.0.0.0
+
+
+#default is to not bring the interface up.
+# just in case users are on nfs booting.
+iface eth0 inet dhcp
+

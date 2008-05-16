@@ -1,0 +1,23 @@
+#!/bin/sh
+###############################################################################$
+#
+# Filename: /etc/init.d/mainsetup
+#
+# File Description: System Startup Script
+#
+# @author Jose Santiago  -  Modified by Thomas Bruno:  tom@limesg.com
+# @version  $Revision: 1.30 $
+#
+###############################################################################$
+
+# run main startup here (coming soon)
+#  for all in /etc/rcS.d/*  run scripts in numerical order.
+#
+    /etc/init.d/rc S
+
+#
+#  Start the main rc script after running setup.
+#  /etc/initr.d/rc #    # = runlevel
+
+    /etc/init.d/rc 3
+

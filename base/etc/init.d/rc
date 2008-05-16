@@ -1,0 +1,79 @@
+#!/bin/sh
+###############################################################################$
+#
+# Filename: /etc/init.d/rc
+#
+# File Description: System Startup Script
+#
+# @author Thomas Bruno:  tom@limesg.com
+# @version  $Revision: 1.1 $
+#
+#   Some code borrowed from ubuntu /etc/init.d/rc. Fixed rc.user running when RLS
+#  is called. This was causing rc.user to run twice.
+#
+###############################################################################$
+
+## Put startup.txt into tmpfs as root is readonly --- mgao@neuros. 
+
+runlevel=$RUNLEVEL
+# Get first argument. Set new runlevel to this argument.
+# borrowed from ubuntu
+[ "$1" != "" ] && runlevel=$1
+if [ "$runlevel" = "" ]
+then
+      echo "Usage: $0 <runlevel>" >&2
+      exit 1
+fi
+
+
+runscripts() {
+	action=$1
+	shift
+	scripts="$@"
+	
+	for script in $scripts
+	  do
+	  case "$script" in
+		  *.sh)
+			  echo "Ran script " $script
+			  sh "$script" $action &
+			  ;;
+		  *)
+			  echo "Ran script " $script
+			  "$script" $action &
+			  ;;
+	  esac
+    done
+    wait
+}
+
+
+
+# Scan the rc*.d where * is the value passed to rc script.
+# then run each of the scripts with S*_ values equal in parrallel
+ACTION="start"
+CURLEVEL=""
+for files in /etc/rc$runlevel.d/S*
+do
+        level=$(echo $files | sed 's/.*\/S\([0-9][0-9]\).*/\1/')
+        if [ "$level" = "$CURLEVEL" ]
+        then
+            continue
+        fi
+        CURLEVEL=$level
+        SCRIPTS=""
+        for i in /etc/rc$runlevel.d/S$level*
+        do
+            SCRIPTS="$SCRIPTS $i"
+        done
+
+        runscripts $ACTION $SCRIPTS
+done
+
+if [ $runlevel != "S" ]
+then
+	# If there is a rc.local then run it.
+	if [ -r /etc/rc.local ]; then
+	       . /etc/rc.local
+	fi
+fi

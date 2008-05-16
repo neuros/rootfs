@@ -1,0 +1,20 @@
+################################################################################
+#
+# INIT Configuration Table
+#
+# @version  $Revision: 1.1 $
+#
+################################################################################
+
+# Run the System Initialization Script
+::sysinit:-/etc/init.d/rcS
+
+# Start the Terminal Shell Session. -r option to automatically login as root.
+#::respawn:/sbin/getty 115200 ttyS0 vt100
+#::respawn:/sbin/getty 115200 console vt100
+::respawn:/sbin/getty -L ttyS0 115200 vt100
+
+
+#::restart:/sbin/init
+
+#::shutdown:/bin/umount -a -r

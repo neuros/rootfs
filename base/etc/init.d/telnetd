@@ -1,0 +1,29 @@
+#!/bin/sh
+###############################################################################$
+#
+# Filename: /etc/init.d/telnetd
+#
+# File Description: Telnetd Startup Script
+#
+# @author Thomas Bruno:  tom@limesg.com
+# @version  $Revision: 1.0 $
+#
+###############################################################################$
+
+[ "$1" != "" ] && action=$1
+if [ "$action" = "" ]
+then
+      echo "Usage: $0 <action  start|stop>" >&2
+      exit 1
+fi
+
+if [ "$action" = "start" ]
+then
+    /usr/sbin/telnetd
+else
+    if [ "$action" = "stop" ]
+    then
+        killall telnetd
+    fi
+fi
+
