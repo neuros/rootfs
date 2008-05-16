@@ -1,3 +1,0 @@
-# TMPFS_SIZE sets the max size that /dev/shm can use.  By default, the
-# kernel sets this upper limit to half of available memory.
-TMPFS_SIZE=

@@ -1,6 +1,0 @@
-#!/bin/sh
-
-# Exit if package was removed but not purged.
-test -x /usr/sbin/dnrd || exit 0
-
-/usr/sbin/dnrd
