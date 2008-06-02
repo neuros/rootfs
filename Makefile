@@ -22,7 +22,7 @@ install:
 
 	@echo "## Copying over basic system libraries and stripping..."
 	@cp -a $(TOOLCHAIN)/target/lib/ default
-	@cp -a $(TOOLCHAIN)/target/usr/lib default/usr
+	@cd default/lib/ && arm-linux-strip --strip-unneeded *.so
 
 	@echo "## Creating dev nodes..."
 	@$(SU) $(PRJROOT)/build-tools/scripts/make-target-nodes.sh --devdir=$(PRJROOT)/rootfs/fs/dev
