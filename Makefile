@@ -6,17 +6,9 @@ ifndef PRJROOT
 $(error You must first source the BSP environment: "source neuros-env")
 endif
 
+.PHONY: install clean install-nfs
 
-.PHONY: install clean
-
-install:
-
-	@echo "## Note: Portions of the root filesystem must be installed"
-	@echo "   as root, using 'sudo'"
-
-	@echo "## Cleaning rootfs..."
-	@$(SU) rm -rf default
-
+install: clean
 	@echo "## Duplicating base rootfs..."
 	@cp -a base default
 
@@ -25,10 +17,38 @@ install:
 	@cd default/lib/ && arm-linux-strip --strip-unneeded *.so
 
 	@echo "## Creating dev nodes..."
-	@$(SU) $(PRJROOT)/build-tools/scripts/make-target-nodes.sh --devdir=$(PRJROOT)/rootfs/fs/dev
+	@$(FAKESU) $(PRJROOT)/build-tools/scripts/make-target-nodes.sh --devdir=$(PRJROOT)/rootfs/fs/dev
 
-	@echo "## Copying over closed source kernel modules..."
+	@echo "## install done."
 
 clean:
-	@echo "cleaning ..."
+	@echo "## Cleaning rootfs..."
+	@$(FAKESU) rm -rf default
 
+	@echo "## clean done."
+
+install-nfs: install
+	@echo "## Packing up rootfs..."
+# fist pack up the entire rootfs except the dev directory that need special handling.
+	@cd fs && tar --create --exclude=.gitignore --exclude=./dev --file ../rootfs-nfs.tar .
+# add the dev directory to the archive from inside fakeroot, so it will keep the device nodes as such
+	@cd fs && fakeroot -- tar --append --exclude=.gitignore --file ../rootfs-nfs.tar ./dev
+# unpack everything as root so that the dev nodes become real dev nodes and can be NFS mounted from the device
+	mkdir -p nfs-rootfs
+
+	@echo "## Unpacking the rootfs in the install directory..."
+	@echo "To create the correct device nodes that NFS can use, you need to be root."
+	@echo "The tool \"$(SU)\" may now request authentication to you."
+	@cd nfs-rootfs && $(SU) tar --extract --file ../rootfs-nfs.tar
+
+	@rm rootfs-nfs.tar
+
+	@echo "## install-nfs done."
+
+clean-nfs:
+	@echo "## Cleaning installed rootfs..."
+	@echo "To remove the rootfs installed for NFS mount, you need to be root since it contain device nodes."
+	@echo "The tool \"$(SU)\" may now request authentication to you."
+	@$(SU) rm -r nfs-rootfs
+
+	@echo "## clean-nfs done."
