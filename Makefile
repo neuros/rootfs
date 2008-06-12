@@ -27,7 +27,9 @@ clean:
 
 	@echo "## clean done."
 
-install-nfs: install
+install-nfs:
+	@cd fs || (echo "Rootfs is not built, so can't copy it for NFS. Exiting." && exit 1)
+
 	@echo "## Packing up rootfs..."
 # fist pack up the entire rootfs except the dev directory that need special handling.
 	@cd fs && tar --create --exclude=.gitignore --exclude=./dev --file ../rootfs-nfs.tar .
