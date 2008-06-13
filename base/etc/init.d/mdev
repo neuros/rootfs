@@ -23,6 +23,19 @@ then
 	mkdir /dev/pts
 	mount /dev/pts
 	mdev -s
+	# Create the needed symbolic links
+	ln -sf /proc/self/fd /dev/fd
+	ln -sf /proc/self/fd/0 /dev/stdin
+	ln -sf /proc/self/fd/1 /dev/stdout
+	ln -sf /proc/self/fd/2 /dev/stderr
+	# The fb devices can be handled when the device to add is checked
+	# on mdev.conf
+	mkdir /dev/fb
+	ln -sf /dev/fb0 /dev/fb/0
+	ln -sf /dev/fb1 /dev/fb/1
+	ln -sf /dev/fb2 /dev/fb/2
+	ln -sf /dev/fb3 /dev/fb/3
+	# Hotplug stuff
 	echo "/sbin/mdev" > /proc/sys/kernel/hotplug
 fi
 
