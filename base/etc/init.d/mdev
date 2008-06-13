@@ -1,0 +1,29 @@
+#!/bin/sh
+###############################################################################$
+#
+# Filename: /etc/init.d/mdev
+#
+# File Description: Init.d Script to handle dynamic devices with busybox
+#
+###############################################################################$
+
+[ "$1" != "" ] && action=$1
+if [ "$action" = "" ]
+then
+      echo "Usage: $0 <action  start|stop>" >&2
+      exit 1
+fi
+
+if [ "$action" = "start" ]
+then
+	# We need sys and proc to be already mounted
+	mount /sys
+	mount /proc
+	mount -t ramfs none /dev
+	mkdir /dev/pts
+	mount /dev/pts
+	mdev -s
+	echo "/sbin/mdev" > /proc/sys/kernel/hotplug
+fi
+
+exit 0
