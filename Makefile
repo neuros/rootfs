@@ -17,13 +17,14 @@ install: clean
 	@cd default/lib/ && arm-linux-strip --strip-unneeded *.so
 
 	@echo "## Creating dev nodes..."
-	@$(FAKESU) $(PRJROOT)/build-tools/scripts/make-target-nodes.sh --devdir=$(PRJROOT)/rootfs/fs/dev
+	@$(FAKESU) -s fakeroot_state -i fakeroot_state $(PRJROOT)/build-tools/scripts/make-target-nodes.sh --devdir=$(PRJROOT)/rootfs/fs/dev
 
 	@echo "## install done."
 
 clean:
 	@echo "## Cleaning rootfs..."
 	@$(FAKESU) rm -rf default
+	@rm -f fakeroot_state
 
 	@echo "## clean done."
 
@@ -34,7 +35,8 @@ install-nfs:
 # fist pack up the entire rootfs except the dev directory that need special handling.
 	@cd fs && tar --create --exclude=.gitignore --exclude=./dev --file ../rootfs-nfs.tar .
 # add the dev directory to the archive from inside fakeroot, so it will keep the device nodes as such
-	@cd fs && fakeroot -- tar --append --exclude=.gitignore --file ../rootfs-nfs.tar ./dev
+	@cd fs && $(FAKESU) -s ../fakeroot_state -i ../fakeroot_state \
+	-- tar --append --exclude=.gitignore --file ../rootfs-nfs.tar ./dev
 # unpack everything as root so that the dev nodes become real dev nodes and can be NFS mounted from the device
 	mkdir -p nfs-rootfs
 
