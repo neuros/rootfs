@@ -3,7 +3,9 @@
 # subdirectories here. Add them in the ".gitignore" file
 # in that subdirectory instead.
 #
-# Normal rules
+# Ignore all generated roofs dirs
 #
 *~
+default
+nfs-rootfs
 
