@@ -1,0 +1,69 @@
+#!/bin/sh
+
+MOUNT_POINT=/media/mmcsd
+DEV_NODE=/dev/mmcblk0
+DEV_PATH=/block/mmcblk0
+DEV_NAME=mmcblk0
+
+if [ "$ACTION" = "add" ]; then
+	if [ "$DEVPATH" = "${DEV_PATH}" ]; then
+		mkdir ${MOUNT_POINT}
+		mount ${DEV_NODE} ${MOUNT_POINT}
+		if [ ! "$?" = "0" ]; then
+			rmdir ${MOUNT_POINT}
+		fi
+	elif [ "$DEVPATH" = "${DEV_PATH}/${DEV_NAME}p1" ]; then
+		mkdir ${MOUNT_POINT}-1
+		mount ${DEV_NODE}p1 ${MOUNT_POINT}-1
+		if [ ! "$?" = "0" ]; then
+			rmdir ${MOUNT_POINT}-1
+		fi
+	elif [ "$DEVPATH" = "${DEV_PATH}/${DEV_NAME}p2" ]; then
+		mkdir ${MOUNT_POINT}-2
+		mount ${DEV_NODE}p2 ${MOUNT_POINT}-2
+		if [ ! "$?" = "0" ]; then
+			rmdir ${MOUNT_POINT}-2
+		fi
+	elif [ "$DEVPATH" = "${DEV_PATH}/${DEV_NAME}p3" ]; then
+		mkdir ${MOUNT_POINT}-3
+		mount ${DEV_NODE}p3 ${MOUNT_POINT}-3
+		if [ ! "$?" = "0" ]; then
+			rmdir ${MOUNT_POINT}-3
+		fi
+	elif [ "$DEVPATH" = "${DEV_PATH}/${DEV_NAME}p4" ]; then
+		mkdir ${MOUNT_POINT}-4
+		mount ${DEV_NODE}p4 ${MOUNT_POINT}-4
+		if [ ! "$?" = "0" ]; then
+			rmdir ${MOUNT_POINT}-4
+		fi
+	elif [ "$DEVPATH" = "${DEV_PATH}/${DEV_NAME}p5" ]; then
+		mkdir ${MOUNT_POINT}-5
+		mount ${DEV_NODE}p5 ${MOUNT_POINT}-5
+		if [ ! "$?" = "0" ]; then
+			rmdir ${MOUNT_POINT}-5
+		fi
+	fi
+elif [ "$ACTION" = "remove" ]; then
+	if [ "$DEVPATH" = "${DEV_PATH}" ]; then
+		umount ${DEV_NODE}
+		rmdir ${MOUNT_POINT}
+	elif [ "$DEVPATH" = "${DEV_PATH}/${DEV_NAME}p1" ]; then
+		umount ${DEV_NODE}p1
+		rmdir ${MOUNT_POINT}-1
+	elif [ "$DEVPATH" = "${DEV_PATH}/${DEV_NAME}p2" ]; then
+		umount ${DEV_NODE}p2
+		rmdir ${MOUNT_POINT}-2
+	elif [ "$DEVPATH" = "${DEV_PATH}/${DEV_NAME}p3" ]; then
+		umount ${DEV_NODE}p3
+		rmdir ${MOUNT_POINT}-3
+	elif [ "$DEVPATH" = "${DEV_PATH}/${DEV_NAME}p4" ]; then
+		umount ${DEV_NODE}p4
+		rmdir ${MOUNT_POINT}-4
+	elif [ "$DEVPATH" = "${DEV_PATH}/${DEV_NAME}p5" ]; then
+		umount ${DEV_NODE}p5
+		rmdir ${MOUNT_POINT}-5
+	fi
+
+fi
+
+exit 1
