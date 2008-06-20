@@ -1,0 +1,77 @@
+#!/bin/sh
+
+MDEV_HEAD=`expr substr ${MDEV} 1 3`
+if [ "${MDEV_HEAD}" = "sda" ]; then
+	MOUNT_POINT=/media/usb1
+elif [ "${MDEV_HEAD}" = "sdb" ]; then
+	MOUNT_POINT=/media/usb2
+elif [ "${MDEV_HEAD}" = "sdc" ]; then
+	MOUNT_POINT=/media/usb3
+elif [ "${MDEV_HEAD}" = "sdd" ]; then
+	MOUNT_POINT=/media/usb4
+else
+	exit 1;
+fi
+DEV_NODE=/dev/${MDEV_HEAD}
+
+if [ "$ACTION" = "add" ]; then
+	if [ "${MDEV}" = "${MDEV_HEAD}" ]; then
+		mkdir -p ${MOUNT_POINT}
+		mount ${DEV_NODE} ${MOUNT_POINT}
+		if [ ! "$?" = "0" ]; then
+			rmdir ${MOUNT_POINT}
+		fi
+	elif [ "${MDEV}" = "${MDEV_HEAD}1" ]; then
+		mkdir -p ${MOUNT_POINT}-1
+		mount ${DEV_NODE}1 ${MOUNT_POINT}-1
+		if [ ! "$?" = "0" ]; then
+			rmdir ${MOUNT_POINT}-1
+		fi
+	elif [ "${MDEV}" = "${MDEV_HEAD}2" ]; then
+		mkdir -p ${MOUNT_POINT}-2
+		mount ${DEV_NODE}2 ${MOUNT_POINT}-2
+		if [ ! "$?" = "0" ]; then
+			rmdir ${MOUNT_POINT}-2
+		fi
+	elif [ "${MDEV}" = "${MDEV_HEAD}3" ]; then
+		mkdir -p ${MOUNT_POINT}-3
+		mount ${DEV_NODE}3 ${MOUNT_POINT}-3
+		if [ ! "$?" = "0" ]; then
+			rmdir ${MOUNT_POINT}-3
+		fi
+	elif [ "${MDEV}" = "${MDEV_HEAD}4" ]; then
+		mkdir -p ${MOUNT_POINT}-4
+		mount ${DEV_NODE}4 ${MOUNT_POINT}-4
+		if [ ! "$?" = "0" ]; then
+			rmdir ${MOUNT_POINT}-4
+		fi
+	elif [ "${MDEV}" = "${MDEV_HEAD}5" ]; then
+		mkdir -p ${MOUNT_POINT}-5
+		mount ${DEV_NODE}5 ${MOUNT_POINT}-5
+		if [ ! "$?" = "0" ]; then
+			rmdir ${MOUNT_POINT}-5
+		fi
+	fi
+elif [ "$ACTION" = "remove" ]; then
+	if [ "${MDEV}" = "${MDEV_HEAD}" ]; then
+		umount ${DEV_NODE}
+		rmdir ${MOUNT_POINT}
+	elif [ "${MDEV}" = "${MDEV_HEAD}1" ]; then
+		umount ${DEV_NODE}1
+		rmdir ${MOUNT_POINT}-1
+	elif [ "${MDEV}" = "${MDEV_HEAD}2" ]; then
+		umount ${DEV_NODE}2
+		rmdir ${MOUNT_POINT}-2
+	elif [ "${MDEV}" = "${MDEV_HEAD}3" ]; then
+		umount ${DEV_NODE}3
+		rmdir ${MOUNT_POINT}-3
+	elif [ "${MDEV}" = "${MDEV_HEAD}4" ]; then
+		umount ${DEV_NODE}4
+		rmdir ${MOUNT_POINT}-4
+	elif [ "${MDEV}" = "${MDEV_HEAD}5" ]; then
+		umount ${DEV_NODE}5
+		rmdir ${MOUNT_POINT}-5
+	fi
+fi
+
+exit 0
