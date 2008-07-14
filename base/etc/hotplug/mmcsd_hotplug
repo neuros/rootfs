@@ -4,6 +4,7 @@ MOUNT_POINT=/media/mmcsd
 DEV_NODE=/dev/mmcblk0
 DEV_PATH=/block/mmcblk0
 DEV_NAME=mmcblk0
+CONSOLE=/dev/ttyS0
 
 if [ "$ACTION" = "add" ]; then
 	if [ "$DEVPATH" = "${DEV_PATH}" ]; then
@@ -11,36 +12,48 @@ if [ "$ACTION" = "add" ]; then
 		mount ${DEV_NODE} ${MOUNT_POINT}
 		if [ ! "$?" = "0" ]; then
 			rmdir ${MOUNT_POINT}
+		else
+			echo "[Storage Card OK]" > ${CONSOLE}
 		fi
 	elif [ "$DEVPATH" = "${DEV_PATH}/${DEV_NAME}p1" ]; then
 		mkdir ${MOUNT_POINT}-1
 		mount ${DEV_NODE}p1 ${MOUNT_POINT}-1
 		if [ ! "$?" = "0" ]; then
 			rmdir ${MOUNT_POINT}-1
+		else
+			echo "[Storage Card OK]" > ${CONSOLE}
 		fi
 	elif [ "$DEVPATH" = "${DEV_PATH}/${DEV_NAME}p2" ]; then
 		mkdir ${MOUNT_POINT}-2
 		mount ${DEV_NODE}p2 ${MOUNT_POINT}-2
 		if [ ! "$?" = "0" ]; then
 			rmdir ${MOUNT_POINT}-2
+		else
+			echo "[Storage Card OK]" > ${CONSOLE}
 		fi
 	elif [ "$DEVPATH" = "${DEV_PATH}/${DEV_NAME}p3" ]; then
 		mkdir ${MOUNT_POINT}-3
 		mount ${DEV_NODE}p3 ${MOUNT_POINT}-3
 		if [ ! "$?" = "0" ]; then
 			rmdir ${MOUNT_POINT}-3
+		else
+			echo "[Storage Card OK]" > ${CONSOLE}
 		fi
 	elif [ "$DEVPATH" = "${DEV_PATH}/${DEV_NAME}p4" ]; then
 		mkdir ${MOUNT_POINT}-4
 		mount ${DEV_NODE}p4 ${MOUNT_POINT}-4
 		if [ ! "$?" = "0" ]; then
 			rmdir ${MOUNT_POINT}-4
+		else
+			echo "[Storage Card OK]" > ${CONSOLE}
 		fi
 	elif [ "$DEVPATH" = "${DEV_PATH}/${DEV_NAME}p5" ]; then
 		mkdir ${MOUNT_POINT}-5
 		mount ${DEV_NODE}p5 ${MOUNT_POINT}-5
 		if [ ! "$?" = "0" ]; then
 			rmdir ${MOUNT_POINT}-5
+		else
+			echo "[Storage Card OK]" > ${CONSOLE}
 		fi
 	fi
 elif [ "$ACTION" = "remove" ]; then
@@ -66,4 +79,4 @@ elif [ "$ACTION" = "remove" ]; then
 
 fi
 
-exit 1
+exit 0

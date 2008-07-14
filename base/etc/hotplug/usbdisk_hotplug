@@ -13,6 +13,7 @@ else
 	exit 1;
 fi
 DEV_NODE=/dev/${MDEV_HEAD}
+CONSOLE=/dev/ttyS0
 
 if [ "$ACTION" = "add" ]; then
 	if [ "${MDEV}" = "${MDEV_HEAD}" ]; then
@@ -20,36 +21,49 @@ if [ "$ACTION" = "add" ]; then
 		mount ${DEV_NODE} ${MOUNT_POINT}
 		if [ ! "$?" = "0" ]; then
 			rmdir ${MOUNT_POINT}
+		else
+			echo "[USB Storage OK]" > ${CONSOLE}
 		fi
 	elif [ "${MDEV}" = "${MDEV_HEAD}1" ]; then
 		mkdir -p ${MOUNT_POINT}-1
 		mount ${DEV_NODE}1 ${MOUNT_POINT}-1
 		if [ ! "$?" = "0" ]; then
 			rmdir ${MOUNT_POINT}-1
+		else
+			echo "[USB Storage OK]" > ${CONSOLE}
 		fi
 	elif [ "${MDEV}" = "${MDEV_HEAD}2" ]; then
 		mkdir -p ${MOUNT_POINT}-2
 		mount ${DEV_NODE}2 ${MOUNT_POINT}-2
 		if [ ! "$?" = "0" ]; then
 			rmdir ${MOUNT_POINT}-2
+		else
+			echo "[USB Storage OK]" > ${CONSOLE}
 		fi
 	elif [ "${MDEV}" = "${MDEV_HEAD}3" ]; then
 		mkdir -p ${MOUNT_POINT}-3
 		mount ${DEV_NODE}3 ${MOUNT_POINT}-3
 		if [ ! "$?" = "0" ]; then
 			rmdir ${MOUNT_POINT}-3
+		else
+			echo "[USB Storage OK]" > ${CONSOLE}
 		fi
 	elif [ "${MDEV}" = "${MDEV_HEAD}4" ]; then
 		mkdir -p ${MOUNT_POINT}-4
 		mount ${DEV_NODE}4 ${MOUNT_POINT}-4
 		if [ ! "$?" = "0" ]; then
 			rmdir ${MOUNT_POINT}-4
+		else
+			echo "[USB Storage OK]" > ${CONSOLE}
 		fi
 	elif [ "${MDEV}" = "${MDEV_HEAD}5" ]; then
 		mkdir -p ${MOUNT_POINT}-5
 		mount ${DEV_NODE}5 ${MOUNT_POINT}-5
 		if [ ! "$?" = "0" ]; then
 			rmdir ${MOUNT_POINT}-5
+		else
+			echo "[USB Storage].....................................................[OK]" > ${CONSOLE}
+			echo "[USB Storage OK]" > ${CONSOLE}
 		fi
 	fi
 elif [ "$ACTION" = "remove" ]; then
