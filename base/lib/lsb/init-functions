@@ -1,0 +1,163 @@
+# /lib/lsb/init-functions for Debian -*- shell-script -*-
+#
+#Copyright (c) 2002-08 Chris Lawrence
+#All rights reserved.
+#
+#Redistribution and use in source and binary forms, with or without
+#modification, are permitted provided that the following conditions
+#are met:
+#1. Redistributions of source code must retain the above copyright
+#   notice, this list of conditions and the following disclaimer.
+#2. Redistributions in binary form must reproduce the above copyright
+#   notice, this list of conditions and the following disclaimer in the
+#   documentation and/or other materials provided with the distribution.
+#3. Neither the name of the author nor the names of other contributors
+#   may be used to endorse or promote products derived from this software
+#   without specific prior written permission.
+#
+#THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+#IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+#WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+#ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE
+#LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+#CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+#SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+#BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+#WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+#OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+#EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+log_success_msg () {
+    echo "$@"
+}
+
+log_failure_msg () {
+    if log_use_fancy_output; then
+        RED=`$TPUT setaf 1`
+        NORMAL=`$TPUT op`
+        /bin/echo -e "${RED}*${NORMAL} $@"
+    else
+        echo "$@"
+    fi
+}
+
+log_warning_msg () {
+    if log_use_fancy_output; then
+        YELLOW=`$TPUT setaf 3`
+        NORMAL=`$TPUT op`
+        /bin/echo -e "${YELLOW}*${NORMAL} $@"
+    else
+        echo "$@"
+    fi
+}
+
+
+# Sample usage:
+# log_daemon_msg "Starting GNOME Login Manager" "gdm"
+#
+# On Debian, would output "Starting GNOME Login Manager: gdm"
+# On Ubuntu, would output " * Starting GNOME Login Manager..."
+#
+# If the second argument is omitted, logging suitable for use with
+# log_progress_msg() is used:
+#
+# log_daemon_msg "Starting remote filesystem services"
+#
+# On Debian, would output "Starting remote filesystem services:"
+# On Ubuntu, would output " * Starting remote filesystem services..."
+
+log_daemon_msg () {
+    if [ -z "${1:-}" ]; then
+        return 1
+    fi
+
+    if [ -z "${2:-}" ]; then
+        echo -n "$1:"
+        return
+    fi
+    
+    echo -n "$1: $2"
+}
+
+# #319739
+#
+# Per policy docs:
+#
+#     log_daemon_msg "Starting remote file system services"
+#     log_progress_msg "nfsd"; start-stop-daemon --start --quiet nfsd
+#     log_progress_msg "mountd"; start-stop-daemon --start --quiet mountd
+#     log_progress_msg "ugidd"; start-stop-daemon --start --quiet ugidd
+#     log_end_msg 0
+#
+# You could also do something fancy with log_end_msg here based on the
+# return values of start-stop-daemon; this is left as an exercise for
+# the reader...
+#
+# On Ubuntu, one would expect log_progress_msg to be a no-op.
+log_progress_msg () {
+    if [ -z "${1:-}" ]; then
+        return 1
+    fi
+    echo -n " $@"
+}
+
+
+# int log_end_message (int exitstatus)
+log_end_msg () {
+    # If no arguments were passed, return
+    if [ -z "${1:-}" ]; then
+        return 1
+    fi
+
+    # Only do the fancy stuff if we have an appropriate terminal
+    # and if /usr is already mounted
+    if log_use_fancy_output; then
+        RED=`$TPUT setaf 1`
+        NORMAL=`$TPUT op`
+        if [ $1 -eq 0 ]; then
+            echo "."
+        else
+            /bin/echo -e " ${RED}failed!${NORMAL}"
+        fi
+    else
+	if [ $1 -eq 0 ]; then
+            echo "."
+        else
+            echo " failed!"
+        fi
+    fi
+    return $1
+}
+
+log_action_msg () {
+    echo "$@."
+}
+
+log_action_begin_msg () {
+    echo -n "$@..."
+}
+
+log_action_cont_msg () {
+    echo -n "$@..."
+}
+
+log_action_end_msg () {
+    if [ -z "${2:-}" ]; then
+        end="."
+    else
+        end=" ($2)."
+    fi
+
+    if [ $1 -eq 0 ]; then
+        echo "done${end}"
+    else
+        if log_use_fancy_output; then
+            RED=`$TPUT setaf 1`
+            NORMAL=`$TPUT op`
+            /bin/echo -e "${RED}failed${end}${NORMAL}"
+        else
+            echo "failed${end}"
+        fi
+    fi
+}
+

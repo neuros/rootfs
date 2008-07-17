@@ -1,0 +1,71 @@
+#!/bin/sh -e
+### BEGIN INIT INFO
+# Provides:          module-init-tools
+# Required-Start:    
+# Required-Stop:     
+# Should-Start:      checkroot
+# Should-stop:
+# Default-Start:     S
+# Default-Stop:
+# Short-Description: Process /etc/modules.
+# Description:       Load the modules listed in /etc/modules.
+### END INIT INFO
+
+VERBOSE=yes
+
+# Silently exit if the kernel does not support modules or needs modutils.
+[ -f /proc/modules ] || exit 0
+[ ! -f /proc/ksyms ] || exit 0
+[ -x /sbin/modprobe  ] || exit 0
+
+. /lib/lsb/init-functions
+
+PATH="/sbin:/bin"
+
+KVER=$(uname -r)
+KMAJ=${KVER%${KVER#*.*[^.]}}
+KMAJ=${KMAJ%.}
+
+if [ -e /etc/modules-$KVER ]; then
+  MODULES_FILE=/etc/modules-$KVER
+elif [ -e /etc/modules-$KMAJ ]; then
+  MODULES_FILE=/etc/modules-$KMAJ
+else
+  MODULES_FILE=/etc/modules
+fi
+
+load_module() {
+  local module args
+  module="$1"
+  args="$2"
+
+  if [ "$VERBOSE" != no ]; then
+    log_action_msg "Loading kernel module $module"
+    modprobe $module $args || true
+  else
+    modprobe $module $args > /dev/null 2>&1 || true
+  fi	
+}
+
+if [ "$VERBOSE" = no ]; then
+  log_action_begin_msg 'Loading kernel modules'
+fi
+
+# Loop over every line in /etc/modules.
+grep '^[^#]' $MODULES_FILE | \
+while read module args; do
+  [ "$module" ] || continue
+  load_module "$module" "$args"
+done
+
+if [ "$VERBOSE" = no ]; then 
+  log_action_end_msg 0
+fi
+
+if [ -r /etc/modprobe.conf ] \
+	&& ! grep -q '^include.*modprobe.d' /etc/modprobe.conf; then
+  log_warning_msg '/etc/modprobe.conf exists but does not include /etc/modprobe.d/!'
+fi
+
+exit 0
+
