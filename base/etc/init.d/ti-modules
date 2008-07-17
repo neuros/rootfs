@@ -1,0 +1,48 @@
+#!/bin/sh
+#
+# Load TI modules and create their devices.
+# Will go away as soon as we figure how to load modules automatically.
+#
+# Filename:/etc/init.d/ti-modules
+#
+# File Description: Load TI modules and create their devices.
+#
+# @author Ugo Riboni
+# @version $Revision: 1.0 $
+#
+###########################################################
+
+[ "$1" != "" ] && action=$1
+if [ "$action" = "" ]
+then
+	echo "Usage: $0 <action  start|stop>" >&2
+	exit 1
+fi
+
+if [ "$action" = "start" ]
+then
+	echo "Loading DSP support modules"
+
+	# insert cmemk, tell it to occupy physical 234MB-242MB, create 
+	# 20 4K buffers, 10 128K buffers  and two 1MB buffers
+	insmod /opt/ticel/cmemk.ko phys_start=0x8EA00000 phys_end=0x8F200000 pools=1x3145728,5x829440,1x61440,1x10240
+	
+	# insert dsplinkk
+	insmod /opt/ticel/dsplinkk.ko
+	
+	# make /dev/cmem
+	rm -f /dev/cmem
+	mknod /dev/cmem c `awk "\\$2==\"cmem\" {print \\$1}" /proc/devices` 0
+	
+	# make /dev/dsplink
+	rm -f /dev/dsplink
+	mknod /dev/dsplink c `awk "\\$2==\"dsplink\" {print \\$1}" /proc/devices` 0
+else
+	if [ "$action" = "stop" ]
+	then
+		rm -f /dev/dsplink
+		rm -f /dev/cmem
+		rmmod dsplink
+		rmmod cmem
+	fi
+fi
