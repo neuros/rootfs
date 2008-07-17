@@ -7,3 +7,8 @@ neuros_ir
 neuros_rtc
 neuros_ir_blaster
 i2c-neuros-sil9034hdmi
+
+# tell cmemk to occupy physical address 234MB-242MB, create 
+# 20 4K buffers, 10 128K buffers  and two 1MB buffers
+cmemk phys_start=0x8EA00000 phys_end=0x8F200000 pools=1x3145728,5x829440,1x61440,1x10240
+dsplinkk
