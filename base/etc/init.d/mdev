@@ -23,6 +23,8 @@ then
 	mkdir /dev/pts
 	mount /dev/pts
 	mdev -s
+	# create the node that mdev can not create
+	mknod /dev/neuros_rtc c 112 0
 	# Create the needed symbolic links
 	ln -sf /proc/self/fd /dev/fd
 	ln -sf /proc/self/fd/0 /dev/stdin
