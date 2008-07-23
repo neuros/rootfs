@@ -23,13 +23,6 @@ if [ "$action" = "start" ]
 then
 	echo "Loading DSP support modules"
 
-	# insert cmemk, tell it to occupy physical 234MB-242MB, create 
-	# 20 4K buffers, 10 128K buffers  and two 1MB buffers
-	insmod /opt/ticel/cmemk.ko phys_start=0x8EA00000 phys_end=0x8F200000 pools=1x3145728,5x829440,1x61440,1x10240
-	
-	# insert dsplinkk
-	insmod /opt/ticel/dsplinkk.ko
-	
 	# make /dev/cmem
 	rm -f /dev/cmem
 	mknod /dev/cmem c `awk "\\$2==\"cmem\" {print \\$1}" /proc/devices` 0

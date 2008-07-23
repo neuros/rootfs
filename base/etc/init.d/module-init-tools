@@ -13,11 +13,6 @@
 
 VERBOSE=yes
 
-# Silently exit if the kernel does not support modules or needs modutils.
-[ -f /proc/modules ] || exit 0
-[ ! -f /proc/ksyms ] || exit 0
-[ -x /sbin/modprobe  ] || exit 0
-
 . /lib/lsb/init-functions
 
 PATH="/sbin:/bin"
