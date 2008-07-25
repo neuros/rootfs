@@ -18,6 +18,7 @@ else
   fi
 fi
 
+PATH=$PATH:/usr/local/bin/test/
 export PATH PS1
 
 umask 022
