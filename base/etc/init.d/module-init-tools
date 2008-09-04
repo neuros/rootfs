@@ -21,6 +21,9 @@ KVER=$(uname -r)
 KMAJ=${KVER%${KVER#*.*[^.]}}
 KMAJ=${KMAJ%.}
 
+# Scan the modules directory for changes and so extra modules not built with kernel can be detected.
+depmod -a
+
 if [ -e /etc/modules-$KVER ]; then
   MODULES_FILE=/etc/modules-$KVER
 elif [ -e /etc/modules-$KMAJ ]; then

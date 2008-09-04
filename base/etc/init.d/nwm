@@ -20,7 +20,7 @@ fi
 if [ "$action" = "start" ]
 then
 
-	QWS_KEYBOARD="osdir" QWS_DISPLAY="LinuxFb:/dev/fb2" /usr/local/bin/nwm &
+	QWS_KEYBOARD="osdir" /usr/local/bin/nwm &
 
 else
 	if [ "$action" = "stop" ]
